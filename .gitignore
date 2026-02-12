@@ -4,8 +4,6 @@ target/
 .env
 .env.*
 
-Cargo.lock
-
 .vscode/
 .idea/
 
