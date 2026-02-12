@@ -2,7 +2,6 @@ target/
 **/target/
 
 .env
-.env.*
 
 .vscode/
 .idea/

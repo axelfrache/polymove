@@ -1,0 +1,43 @@
+services:
+  polytech:
+    build:
+      context: ./services/polytech
+      dockerfile: Dockerfile
+    ports:
+      - "${POLYTECH_PORT}:${POLYTECH_PORT}"
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - POLYTECH_HOST=0.0.0.0
+      - POLYTECH_PORT=${POLYTECH_PORT}
+      - RUST_LOG=polytech=debug,tower_http=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - polymove-net
+
+  postgres:
+    image: postgres:18-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - polymove-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  polymove-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
