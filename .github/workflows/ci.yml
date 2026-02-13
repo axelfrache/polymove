@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [polytech]
+        service: [polytech, erasmumu]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +34,7 @@ jobs:
     needs: fmt
     strategy:
       matrix:
-        service: [polytech]
+        service: [polytech, erasmumu]
     services:
       postgres:
         image: postgres:18-alpine
@@ -84,7 +84,7 @@ jobs:
     needs: test
     strategy:
       matrix:
-        service: [polytech]
+        service: [polytech, erasmumu]
     steps:
       - uses: actions/checkout@v4
 
