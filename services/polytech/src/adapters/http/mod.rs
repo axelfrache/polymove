@@ -2,11 +2,11 @@ use crate::application::student_service::StudentService;
 use crate::domain::student::Student;
 use crate::ports::student_repository::{StudentError, StudentRepository};
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use std::sync::Arc;

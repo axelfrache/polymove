@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [polytech]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --check
+        working-directory: services/${{ matrix.service }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: fmt
+    strategy:
+      matrix:
+        service: [polytech]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: polymove
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/polymove
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/${{ matrix.service }}/target
+          key: ${{ runner.os }}-cargo-${{ matrix.service }}-${{ hashFiles('services/${{ matrix.service }}/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.service }}-
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+        working-directory: services/${{ matrix.service }}
+
+      - name: Run tests
+        run: cargo test
+        working-directory: services/${{ matrix.service }}
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service: [polytech]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t polymove-${{ matrix.service }}:${{ github.sha }} .
+        working-directory: services/${{ matrix.service }}
