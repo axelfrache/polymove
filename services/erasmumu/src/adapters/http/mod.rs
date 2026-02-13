@@ -94,10 +94,7 @@ async fn create_offer<R: OfferRepository>(
         start_date: payload.start_date,
         end_date: payload.end_date,
     };
-    let offer = service
-        .create_offer(params)
-        .await
-        .map_err(Response::from)?;
+    let offer = service.create_offer(params).await.map_err(Response::from)?;
 
     Ok((StatusCode::CREATED, Json(offer)))
 }
