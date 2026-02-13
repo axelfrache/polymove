@@ -1,4 +1,4 @@
-use crate::application::offer_service::OfferService;
+use crate::application::offer_service::{CreateOfferParams, OfferService, UpdateOfferParams};
 use crate::domain::offer::Offer;
 use crate::domain::ports::offer_repository::{OfferError, OfferRepository};
 use axum::{
@@ -85,16 +85,17 @@ async fn create_offer<R: OfferRepository>(
     State(service): State<Arc<OfferService<R>>>,
     Json(payload): Json<CreateOfferRequest>,
 ) -> AppResult<(StatusCode, Json<Offer>)> {
+    let params = CreateOfferParams {
+        title: payload.title,
+        link: payload.link,
+        city: payload.city,
+        domain: payload.domain,
+        salary: payload.salary,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+    };
     let offer = service
-        .create_offer(
-            payload.title,
-            payload.link,
-            payload.city,
-            payload.domain,
-            payload.salary,
-            payload.start_date,
-            payload.end_date,
-        )
+        .create_offer(params)
         .await
         .map_err(Response::from)?;
 
@@ -141,18 +142,18 @@ async fn update_offer<R: OfferRepository>(
     Path(id): Path<String>,
     Json(payload): Json<UpdateOfferRequest>,
 ) -> AppResult<Json<Offer>> {
+    let params = UpdateOfferParams {
+        title: payload.title,
+        link: payload.link,
+        city: payload.city,
+        domain: payload.domain,
+        salary: payload.salary,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        available: payload.available,
+    };
     let offer = service
-        .update_offer(
-            &id,
-            payload.title,
-            payload.link,
-            payload.city,
-            payload.domain,
-            payload.salary,
-            payload.start_date,
-            payload.end_date,
-            payload.available,
-        )
+        .update_offer(&id, params)
         .await
         .map_err(Response::from)?;
     Ok(Json(offer))

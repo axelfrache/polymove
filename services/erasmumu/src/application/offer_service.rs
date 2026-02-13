@@ -2,6 +2,27 @@ use crate::domain::offer::Offer;
 use crate::domain::ports::offer_repository::{OfferError, OfferRepository};
 use uuid::Uuid;
 
+pub struct CreateOfferParams {
+    pub title: String,
+    pub link: String,
+    pub city: String,
+    pub domain: String,
+    pub salary: f64,
+    pub start_date: String,
+    pub end_date: String,
+}
+
+pub struct UpdateOfferParams {
+    pub title: Option<String>,
+    pub link: Option<String>,
+    pub city: Option<String>,
+    pub domain: Option<String>,
+    pub salary: Option<f64>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub available: Option<bool>,
+}
+
 pub struct OfferService<R: OfferRepository> {
     repository: R,
 }
@@ -11,25 +32,16 @@ impl<R: OfferRepository> OfferService<R> {
         Self { repository }
     }
 
-    pub async fn create_offer(
-        &self,
-        title: String,
-        link: String,
-        city: String,
-        domain: String,
-        salary: f64,
-        start_date: String,
-        end_date: String,
-    ) -> Result<Offer, OfferError> {
+    pub async fn create_offer(&self, params: CreateOfferParams) -> Result<Offer, OfferError> {
         let offer = Offer {
             id: Uuid::new_v4().to_string(),
-            title,
-            link,
-            city,
-            domain,
-            salary,
-            start_date,
-            end_date,
+            title: params.title,
+            link: params.link,
+            city: params.city,
+            domain: params.domain,
+            salary: params.salary,
+            start_date: params.start_date,
+            end_date: params.end_date,
             available: true,
         };
         self.repository.create(&offer).await
@@ -56,14 +68,7 @@ impl<R: OfferRepository> OfferService<R> {
     pub async fn update_offer(
         &self,
         id: &str,
-        title: Option<String>,
-        link: Option<String>,
-        city: Option<String>,
-        domain: Option<String>,
-        salary: Option<f64>,
-        start_date: Option<String>,
-        end_date: Option<String>,
-        available: Option<bool>,
+        params: UpdateOfferParams,
     ) -> Result<Offer, OfferError> {
         let existing = self
             .repository
@@ -73,14 +78,14 @@ impl<R: OfferRepository> OfferService<R> {
 
         let updated = Offer {
             id: existing.id,
-            title: title.unwrap_or(existing.title),
-            link: link.unwrap_or(existing.link),
-            city: city.unwrap_or(existing.city),
-            domain: domain.unwrap_or(existing.domain),
-            salary: salary.unwrap_or(existing.salary),
-            start_date: start_date.unwrap_or(existing.start_date),
-            end_date: end_date.unwrap_or(existing.end_date),
-            available: available.unwrap_or(existing.available),
+            title: params.title.unwrap_or(existing.title),
+            link: params.link.unwrap_or(existing.link),
+            city: params.city.unwrap_or(existing.city),
+            domain: params.domain.unwrap_or(existing.domain),
+            salary: params.salary.unwrap_or(existing.salary),
+            start_date: params.start_date.unwrap_or(existing.start_date),
+            end_date: params.end_date.unwrap_or(existing.end_date),
+            available: params.available.unwrap_or(existing.available),
         };
 
         self.repository.update(&updated).await
