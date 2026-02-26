@@ -1,6 +1,8 @@
 use dotenvy::dotenv;
 use polytech::{
-    adapters::{http, persistence::postgres::PostgresStudentRepository},
+    adapters::{
+        grpc::mi8_client::Mi8GrpcClient, http, persistence::postgres::PostgresStudentRepository,
+    },
     application::student_service::StudentService,
 };
 use sqlx::postgres::PgPoolOptions;
@@ -23,6 +25,10 @@ async fn main() -> anyhow::Result<()> {
     let port = env::var("POLYTECH_PORT").unwrap_or_else(|_| "3000".to_string());
     let addr_str = format!("{}:{}", host, port);
 
+    let mi8_addr = env::var("MI8_GRPC_ADDR").unwrap_or_else(|_| "http://127.0.0.1:50051".to_string());
+    tracing::info!("Connecting to MI8 at {}...", mi8_addr);
+    let mi8_client = Mi8GrpcClient::connect(mi8_addr).await?;
+
     tracing::info!("Connecting to database...");
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -34,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let repository = PostgresStudentRepository::new(pool);
     let service = Arc::new(StudentService::new(repository));
 
-    let app = http::router(service);
+    let app = http::router(service, mi8_client).await;
 
     let addr: SocketAddr = addr_str.parse()?;
     tracing::info!("Listening on {}", addr);
