@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package mi8;
+
+// Data Models
+
+message News {
+  string id = 1;
+  string name = 2;
+  string source = 3;
+  string date = 4; // ISO-8601
+  repeated string tags = 5;
+  string city = 6;
+  string country = 7;
+}
+
+message CityScore {
+  string city = 1;
+  string country = 2;
+  int32 quality_of_life = 3;
+  int32 safety = 4;
+  int32 economy = 5;
+  int32 culture = 6;
+  string last_updated = 7; // ISO-8601
+}
+
+// Requests & Responses
+
+message GetLatestNewsRequest {
+  int32 limit = 1;
+}
+
+message GetLatestNewsResponse {
+  repeated News news = 1;
+}
+
+message GetLatestNewsInCityRequest {
+  string city = 1;
+  int32 limit = 2;
+}
+
+message GetLatestNewsInCityResponse {
+  repeated News news = 1;
+}
+
+message CreateNewsRequest {
+  News news = 1;
+}
+
+message CreateNewsResponse {
+  bool success = 1;
+  string message = 2;
+  string news_id = 3;
+}
+
+message GetCityScoreRequest {
+  string city = 1;
+}
+
+message GetCityScoreResponse {
+  CityScore score = 1;
+}
+
+message GetTopCitiesRequest {
+  int32 limit = 1;
+}
+
+message GetTopCitiesResponse {
+  repeated CityScore scores = 1;
+}
+
+// Service Definition
+
+service Mi8Service {
+  rpc GetLatestNews(GetLatestNewsRequest) returns (GetLatestNewsResponse);
+  rpc GetLatestNewsInCity(GetLatestNewsInCityRequest) returns (GetLatestNewsInCityResponse);
+  rpc CreateNews(CreateNewsRequest) returns (CreateNewsResponse);
+  rpc GetCityScore(GetCityScoreRequest) returns (GetCityScoreResponse);
+  rpc GetTopCities(GetTopCitiesRequest) returns (GetTopCitiesResponse);
+}
