@@ -21,7 +21,6 @@ impl<R: NewsRepository> Mi8ServiceImpl<R> {
     }
 }
 
-// Convert Domain -> Proto
 impl From<News> for ProtoNews {
     fn from(n: News) -> Self {
         ProtoNews {
@@ -36,7 +35,6 @@ impl From<News> for ProtoNews {
     }
 }
 
-// Convert Proto -> Domain
 impl From<ProtoNews> for News {
     fn from(n: ProtoNews) -> Self {
         News {
@@ -115,7 +113,7 @@ impl<R: NewsRepository + 'static> Mi8Service for Mi8ServiceImpl<R> {
         Ok(Response::new(CreateNewsResponse {
             success: true,
             message: "News created".to_string(),
-            news_id: news.id, // ID is generated/ensured in service
+            news_id: news.id,
         }))
     }
 

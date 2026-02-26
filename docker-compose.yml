@@ -1,8 +1,8 @@
 services:
   polytech:
     build:
-      context: ./services/polytech
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/polytech/Dockerfile
     ports:
       - "${POLYTECH_PORT}:${POLYTECH_PORT}"
     environment:
@@ -10,16 +10,19 @@ services:
       - POLYTECH_HOST=0.0.0.0
       - POLYTECH_PORT=${POLYTECH_PORT}
       - RUST_LOG=polytech=debug,tower_http=debug
+      - MI8_GRPC_ADDR=http://mi8:50051
     depends_on:
       postgres:
         condition: service_healthy
+      mi8:
+        condition: service_started
     networks:
       - polymove-net
 
   erasmumu:
     build:
-      context: ./services/erasmumu
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/erasmumu/Dockerfile
     ports:
       - "${ERASMUMU_PORT}:${ERASMUMU_PORT}"
     environment:
@@ -33,6 +36,37 @@ services:
         condition: service_healthy
     networks:
       - polymove-net
+
+  mi8:
+    build:
+      context: .
+      dockerfile: services/mi8/Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      - REDIS_URL=redis://redis:6379/
+      - MI8_HOST=0.0.0.0
+      - MI8_PORT=50051
+      - RUST_LOG=mi8=debug,tower_http=debug
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - polymove-net
+
+  colporteur:
+    build:
+      context: .
+      dockerfile: services/colporteur/Dockerfile
+    environment:
+      - MI8_GRPC_ADDR=http://mi8:50051
+      - RUST_LOG=info
+    depends_on:
+      mi8:
+        condition: service_started
+    networks:
+      - polymove-net
+    profiles: [ "tools" ]
 
   postgres:
     image: postgres:18-alpine
@@ -68,6 +102,21 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - polymove-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 networks:
   polymove-net:
     driver: bridge
@@ -75,3 +124,4 @@ networks:
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:

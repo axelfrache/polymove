@@ -1,7 +1,7 @@
 use crate::domain::model::{CityScore, News};
 use crate::domain::ports::news_repository::{NewsError, NewsRepository};
 use redis::aio::ConnectionManager; 
-use redis::FromRedisValue; // Import essential trait
+use redis::FromRedisValue;
 
 pub struct RedisNewsRepository {
     con_manager: ConnectionManager,
@@ -19,8 +19,6 @@ impl NewsRepository for RedisNewsRepository {
         let serialized_news = serde_json::to_string(news)
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
         
-        // 1. Store news payload
-        // HSET key field value
         redis::cmd("HSET")
             .arg("news")
             .arg(&news.id)
@@ -29,7 +27,6 @@ impl NewsRepository for RedisNewsRepository {
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
         
-        // 2. Add to global timeline (ZSET, score = timestamp)
         let timestamp = chrono::Utc::now().timestamp_millis();
         redis::cmd("ZADD")
             .arg("timeline:global")
@@ -39,7 +36,6 @@ impl NewsRepository for RedisNewsRepository {
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
         
-        // 3. Add to city timeline
         let city_key = format!("timeline:city:{}", news.city);
         redis::cmd("ZADD")
             .arg(&city_key)
@@ -67,7 +63,6 @@ impl NewsRepository for RedisNewsRepository {
             return Ok(Vec::new());
         }
 
-        // Fetch values as generic Redis Values
         let values: Vec<redis::Value> = redis::cmd("HMGET")
             .arg("news")
             .arg(&ids)
@@ -77,7 +72,6 @@ impl NewsRepository for RedisNewsRepository {
 
         let mut news_list = Vec::new();
         for val in values {
-            // Use String::from_redis_value for robustness
             if let Ok(s) = String::from_redis_value(&val) {
                  if let Ok(n) = serde_json::from_str::<News>(&s) {
                     news_list.push(n);

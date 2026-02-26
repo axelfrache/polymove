@@ -11,19 +11,16 @@ impl<R: NewsRepository> NewsService<R> {
     }
 
     pub async fn create_news(&self, mut news: News) -> Result<(), NewsError> {
-        // Assign ID if missing (though usually done by caller or client, let's ensure it)
         if news.id.is_empty() {
             news.id = uuid::Uuid::new_v4().to_string();
         }
 
-        // 1. Get current city score or init default
         let mut score = self
             .repository
             .get_city_score(&news.city)
             .await?
             .unwrap_or_else(|| CityScore::new(news.city.clone(), news.country.clone()));
 
-        // 2. Apply scoring rules based on tags
         for tag in &news.tags {
             match tag.as_str() {
                 "innovation" => {
@@ -64,15 +61,12 @@ impl<R: NewsRepository> NewsService<R> {
             }
         }
 
-        // 3. Ensure scores don't drop below 0
         score.quality_of_life = score.quality_of_life.max(0);
         score.safety = score.safety.max(0);
         score.economy = score.economy.max(0);
         score.culture = score.culture.max(0);
         score.last_updated = chrono::Utc::now().to_rfc3339();
 
-        // 4. Update repository (news + score)
-        // Ideally transactional, but here sequential
         self.repository.create_news(&news).await?;
         self.repository.update_city_score(&score).await?;
 
