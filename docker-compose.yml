@@ -11,6 +11,7 @@ services:
       - POLYTECH_PORT=${POLYTECH_PORT}
       - RUST_LOG=polytech=debug,tower_http=debug
       - MI8_GRPC_ADDR=http://mi8:50051
+      - ERASMUMU_BASE_URL=http://erasmumu:${ERASMUMU_PORT}
     depends_on:
       postgres:
         condition: service_healthy

@@ -26,8 +26,20 @@ async fn main() -> anyhow::Result<()> {
     let addr_str = format!("{}:{}", host, port);
 
     let mi8_addr = env::var("MI8_GRPC_ADDR").unwrap_or_else(|_| "http://127.0.0.1:50051".to_string());
+    let erasmumu_base_url = env::var("ERASMUMU_BASE_URL").unwrap_or_else(|_| "http://erasmumu:8082".to_string());
+    let upstream_timeout_ms: u64 = env::var("UPSTREAM_TIMEOUT_MS")
+        .unwrap_or_else(|_| "800".to_string())
+        .parse()
+        .unwrap_or(800);
+
     tracing::info!("Connecting to MI8 at {}...", mi8_addr);
-    let mi8_client = Mi8GrpcClient::connect(mi8_addr).await?;
+    let mi8_client = Arc::new(Mi8GrpcClient::connect(mi8_addr, upstream_timeout_ms).await?);
+
+    tracing::info!("Initializing Erasmumu client at {}...", erasmumu_base_url);
+    let erasmumu_client = Arc::new(polytech::adapters::http::erasmumu_client::ErasmumuReqwestClient::new(
+        erasmumu_base_url,
+        upstream_timeout_ms,
+    ));
 
     tracing::info!("Connecting to database...");
     let pool = PgPoolOptions::new()
@@ -38,9 +50,15 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     let repository = PostgresStudentRepository::new(pool);
-    let service = Arc::new(StudentService::new(repository));
+    let service = Arc::new(StudentService::new(repository.clone()));
+    
+    let offer_aggregation_service = Arc::new(polytech::application::offer_aggregation_service::OfferAggregationService::new(
+        Arc::new(repository),
+        erasmumu_client.clone(),
+        mi8_client.clone(),
+    ));
 
-    let app = http::router(service, mi8_client).await;
+    let app = http::router(service, mi8_client, offer_aggregation_service).await;
 
     let addr: SocketAddr = addr_str.parse()?;
     tracing::info!("Listening on {}", addr);
