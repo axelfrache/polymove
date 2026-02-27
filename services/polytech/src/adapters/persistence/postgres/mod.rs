@@ -3,6 +3,7 @@ use crate::ports::student_repository::{StudentError, StudentRepository};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct PostgresStudentRepository {
     pool: PgPool,
 }
