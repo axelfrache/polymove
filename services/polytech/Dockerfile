@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl-dev \
+    pkg-config \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,7 +16,6 @@ RUN mkdir -p services/polytech/src && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > services/polytech/src/main.rs
 
 WORKDIR /app/services/polytech
-# Trick to get the crate name from Cargo.toml if needed, but here we can just build
 RUN cargo build --release
 RUN rm -rf src
 
