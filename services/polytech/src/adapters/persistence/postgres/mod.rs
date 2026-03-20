@@ -1,3 +1,5 @@
+pub mod internship_repository;
+
 use crate::domain::student::Student;
 use crate::ports::student_repository::{StudentError, StudentRepository};
 use sqlx::PgPool;
