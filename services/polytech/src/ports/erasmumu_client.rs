@@ -18,4 +18,9 @@ pub trait ErasmumuClient: Send + Sync {
         city: Option<String>,
         domain: Option<String>,
     ) -> impl std::future::Future<Output = Result<Vec<ErasmumuOffer>, anyhow::Error>> + Send;
+
+    fn register_internship(
+        &self,
+        offer_id: &str,
+    ) -> impl std::future::Future<Output = Result<bool, anyhow::Error>> + Send;
 }

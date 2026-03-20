@@ -1,7 +1,12 @@
 use dotenvy::dotenv;
 use polytech::{
     adapters::{
-        grpc::mi8_client::Mi8GrpcClient, http, persistence::postgres::PostgresStudentRepository,
+        grpc::mi8_client::Mi8GrpcClient,
+        http,
+        persistence::postgres::{
+            PostgresStudentRepository,
+            internship_repository::PostgresInternshipRepository,
+        },
     },
     application::student_service::StudentService,
 };
@@ -49,16 +54,18 @@ async fn main() -> anyhow::Result<()> {
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let repository = PostgresStudentRepository::new(pool);
+    let repository = PostgresStudentRepository::new(pool.clone());
     let service = Arc::new(StudentService::new(repository.clone()));
-    
+
     let offer_aggregation_service = Arc::new(polytech::application::offer_aggregation_service::OfferAggregationService::new(
         Arc::new(repository),
         erasmumu_client.clone(),
         mi8_client.clone(),
     ));
 
-    let app = http::router(service, mi8_client, offer_aggregation_service).await;
+    let internship_repository = Arc::new(PostgresInternshipRepository::new(pool));
+
+    let app = http::router(service, erasmumu_client, mi8_client, offer_aggregation_service, internship_repository).await;
 
     let addr: SocketAddr = addr_str.parse()?;
     tracing::info!("Listening on {}", addr);

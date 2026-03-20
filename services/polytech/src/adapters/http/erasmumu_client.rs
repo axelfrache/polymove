@@ -19,6 +19,40 @@ impl ErasmumuReqwestClient {
 }
 
 impl ErasmumuClient for ErasmumuReqwestClient {
+    async fn register_internship(&self, offer_id: &str) -> Result<bool, anyhow::Error> {
+        let url = format!("{}/offer/{}", self.base_url, offer_id);
+        let resp = self.client.get(&url).send().await?;
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(false);
+        }
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("Erasmumu returned {}", resp.status()));
+        }
+
+        let offer: serde_json::Value = resp.json().await?;
+        let available = offer.get("available").and_then(|v| v.as_bool()).unwrap_or(false);
+        if !available {
+            return Ok(false);
+        }
+
+        let update_resp = self
+            .client
+            .put(&url)
+            .json(&serde_json::json!({ "available": false }))
+            .send()
+            .await?;
+
+        if !update_resp.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Failed to update offer availability: {}",
+                update_resp.status()
+            ));
+        }
+
+        Ok(true)
+    }
+
     async fn fetch_offers(
         &self,
         city: Option<String>,
