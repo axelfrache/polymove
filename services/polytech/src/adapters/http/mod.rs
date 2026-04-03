@@ -1,21 +1,24 @@
 pub mod erasmumu_client;
 pub mod offers;
 
+use crate::adapters::amqp::publisher::AmqpPublisher;
 use crate::adapters::grpc::mi8_client::Mi8GrpcClient;
-use crate::application::student_service::StudentService;
+use crate::application::notification_service::NotificationService;
 use crate::application::offer_aggregation_service::OfferAggregationService;
+use crate::application::student_service::StudentService;
 use crate::domain::internship::Internship;
+use crate::domain::notification::Notification;
 use crate::domain::student::Student;
-use crate::ports::student_repository::{StudentError, StudentRepository};
 use crate::ports::erasmumu_client::ErasmumuClient;
 use crate::ports::internship_repository::InternshipRepository;
 use crate::ports::mi8_client::Mi8Client;
+use crate::ports::student_repository::{StudentError, StudentRepository};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -26,6 +29,8 @@ pub struct AppState<R: StudentRepository, E: ErasmumuClient, M: Mi8Client> {
     pub mi8_client: Arc<M>,
     pub offer_aggregation_service: Arc<OfferAggregationService<R, E, M>>,
     pub internship_repository: Arc<dyn InternshipRepository>,
+    pub notification_service: Arc<NotificationService>,
+    pub publisher: Option<Arc<AmqpPublisher>>,
 }
 use uuid::Uuid;
 
@@ -81,6 +86,8 @@ pub async fn router<R, E, M>(
     mi8_client: Arc<M>,
     offer_aggregation_service: Arc<OfferAggregationService<R, E, M>>,
     internship_repository: Arc<dyn InternshipRepository>,
+    notification_service: Arc<NotificationService>,
+    publisher: Option<Arc<AmqpPublisher>>,
 ) -> Router
 where
     R: StudentRepository + Send + Sync + 'static,
@@ -93,6 +100,8 @@ where
         mi8_client,
         offer_aggregation_service,
         internship_repository,
+        notification_service,
+        publisher,
     });
 
     let cors = tower_http::cors::CorsLayer::permissive();
@@ -108,6 +117,8 @@ where
         .route("/mi8/latest-in-city", get(get_latest_news_in_city::<R, E, M>))
         .route("/offers", get(offers::get_offers::<R, E, M>))
         .route("/students/{id}/recommended-offers", get(offers::get_recommended_offers::<R, E, M>))
+        .route("/students/{id}/notifications", get(get_notifications::<R, E, M>))
+        .route("/notifications/{id}/read", put(mark_notification_read::<R, E, M>))
         .route("/internship", post(apply_internship::<R, E, M>))
         .route("/internship/{id}", get(get_internship::<R, E, M>))
         .layer(cors)
@@ -121,16 +132,37 @@ async fn health() -> StatusCode {
 async fn create_student<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Json(payload): Json<CreateStudentRequest>,
-) -> AppResult<(StatusCode, Json<Student>)> 
+) -> AppResult<(StatusCode, Json<Student>)>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
     M: Mi8Client + Send + Sync + 'static,
 {
-    let student = state.service
-        .create_student(payload.firstname, payload.name, payload.domain)
+    let student = state
+        .service
+        .create_student(payload.firstname, payload.name, payload.domain.clone())
         .await
         .map_err(Response::from)?;
+
+    // Publish student.registered event
+    if let Some(publisher) = &state.publisher {
+        let event = serde_json::json!({
+            "student_id": student.id.to_string(),
+            "name": format!("{} {}", student.firstname, student.name),
+            "domain": student.domain,
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        });
+        if let Ok(payload_bytes) = serde_json::to_vec(&event) {
+            let pub_clone = publisher.clone();
+            tokio::spawn(async move {
+                if let Err(e) = pub_clone.publish("student.registered", &payload_bytes).await {
+                    tracing::error!("Failed to publish student.registered: {}", e);
+                } else {
+                    tracing::info!("Published student.registered event");
+                }
+            });
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(student)))
 }
@@ -138,7 +170,7 @@ where
 async fn get_student<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Path(id): Path<String>,
-) -> AppResult<Json<Student>> 
+) -> AppResult<Json<Student>>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
@@ -152,40 +184,24 @@ where
 async fn list_students<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Query(params): Query<ListParams>,
-) -> AppResult<Json<Vec<Student>>> 
+) -> AppResult<Json<Vec<Student>>>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
     M: Mi8Client + Send + Sync + 'static,
 {
-    let students = state.service
+    let students = state
+        .service
         .list_students_by_domain(&params.domain)
         .await
         .map_err(Response::from)?;
     Ok(Json(students))
 }
 
-async fn update_student<R, E, M>(
-    State(state): State<Arc<AppState<R, E, M>>>,
-    Path(id): Path<Uuid>,
-    Json(payload): Json<UpdateStudentRequest>,
-) -> AppResult<Json<Student>> 
-where
-    R: StudentRepository + Send + Sync + 'static,
-    E: ErasmumuClient + Send + Sync + 'static,
-    M: Mi8Client + Send + Sync + 'static,
-{
-    let student = state.service
-        .update_student(id, payload.firstname, payload.name, payload.domain)
-        .await
-        .map_err(Response::from)?;
-    Ok(Json(student))
-}
-
 async fn delete_student<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Path(id): Path<Uuid>,
-) -> AppResult<StatusCode> 
+) -> AppResult<StatusCode>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
@@ -195,10 +211,9 @@ where
     Ok(StatusCode::OK)
 }
 
-
 async fn get_latest_news<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
-) -> AppResult<Json<Vec<crate::mi8_proto::News>>> 
+) -> AppResult<Json<Vec<crate::mi8_proto::News>>>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
@@ -214,17 +229,69 @@ where
 async fn get_latest_news_in_city<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Query(params): Query<CityParams>,
-) -> AppResult<Json<Vec<crate::mi8_proto::News>>> 
+) -> AppResult<Json<Vec<crate::mi8_proto::News>>>
 where
     R: StudentRepository + Send + Sync + 'static,
     E: ErasmumuClient + Send + Sync + 'static,
     M: Mi8Client + Send + Sync + 'static,
 {
-    let news = state.mi8_client.get_latest_news_in_city(params.city, 10).await.map_err(|e| {
-        tracing::error!("MI8 error: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, "MI8 Service Unavailable").into_response()
-    })?;
+    let news = state
+        .mi8_client
+        .get_latest_news_in_city(params.city, 10)
+        .await
+        .map_err(|e| {
+            tracing::error!("MI8 error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "MI8 Service Unavailable").into_response()
+        })?;
     Ok(Json(news))
+}
+
+async fn get_notifications<R, E, M>(
+    State(state): State<Arc<AppState<R, E, M>>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<Notification>>>
+where
+    R: StudentRepository + Send + Sync + 'static,
+    E: ErasmumuClient + Send + Sync + 'static,
+    M: Mi8Client + Send + Sync + 'static,
+{
+    let student_id = Uuid::parse_str(&id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID").into_response())?;
+
+    let notifications = state
+        .notification_service
+        .list_notifications(student_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Notification error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+        })?;
+
+    Ok(Json(notifications))
+}
+
+async fn mark_notification_read<R, E, M>(
+    State(state): State<Arc<AppState<R, E, M>>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Notification>>
+where
+    R: StudentRepository + Send + Sync + 'static,
+    E: ErasmumuClient + Send + Sync + 'static,
+    M: Mi8Client + Send + Sync + 'static,
+{
+    let notification_id = Uuid::parse_str(&id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID").into_response())?;
+
+    let notification = state
+        .notification_service
+        .mark_read(notification_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Notification error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+        })?;
+
+    Ok(Json(notification))
 }
 
 #[derive(Deserialize)]

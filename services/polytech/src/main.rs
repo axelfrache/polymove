@@ -1,14 +1,22 @@
 use dotenvy::dotenv;
 use polytech::{
     adapters::{
+        amqp::{
+            publisher::AmqpPublisher,
+            subscriber::start_offer_subscriber,
+        },
         grpc::mi8_client::Mi8GrpcClient,
         http,
         persistence::postgres::{
             PostgresStudentRepository,
             internship_repository::PostgresInternshipRepository,
+            notification_repository::PostgresNotificationRepository,
         },
     },
-    application::student_service::StudentService,
+    application::{
+        notification_service::NotificationService,
+        student_service::StudentService,
+    },
 };
 use sqlx::postgres::PgPoolOptions;
 use std::{env, net::SocketAddr, sync::Arc};
@@ -58,14 +66,43 @@ async fn main() -> anyhow::Result<()> {
     let service = Arc::new(StudentService::new(repository.clone()));
 
     let offer_aggregation_service = Arc::new(polytech::application::offer_aggregation_service::OfferAggregationService::new(
-        Arc::new(repository),
+        Arc::new(repository.clone()),
         erasmumu_client.clone(),
         mi8_client.clone(),
     ));
 
-    let internship_repository = Arc::new(PostgresInternshipRepository::new(pool));
+    let internship_repository = Arc::new(PostgresInternshipRepository::new(pool.clone()));
 
-    let app = http::router(service, erasmumu_client, mi8_client, offer_aggregation_service, internship_repository).await;
+    let notification_repository = Arc::new(PostgresNotificationRepository::new(pool));
+    let notification_service = Arc::new(NotificationService::new(notification_repository));
+
+    // Initialize AMQP publisher
+    let amqp_url = env::var("AMQP_URL")
+        .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
+
+    let publisher = match AmqpPublisher::new(&amqp_url).await {
+        Ok(p) => {
+            tracing::info!("Connected to RabbitMQ");
+            Some(Arc::new(p))
+        }
+        Err(e) => {
+            tracing::warn!("Failed to connect to RabbitMQ: {}. Continuing without messaging.", e);
+            None
+        }
+    };
+
+    // Start offer.created subscriber
+    start_offer_subscriber(&amqp_url, notification_service.clone(), Arc::new(repository)).await;
+
+    let app = http::router(
+        service,
+        erasmumu_client,
+        mi8_client,
+        offer_aggregation_service,
+        internship_repository,
+        notification_service,
+        publisher,
+    ).await;
 
     let addr: SocketAddr = addr_str.parse()?;
     tracing::info!("Listening on {}", addr);
