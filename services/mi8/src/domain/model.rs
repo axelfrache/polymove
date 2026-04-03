@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct News {
@@ -20,6 +21,31 @@ pub struct CityScore {
     pub economy: i32,
     pub culture: i32,
     pub last_updated: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CityStats {
+    pub city: String,
+    pub total_offers: i32,
+    pub offers_by_domain: HashMap<String, i32>,
+    pub last_offer_date: String,
+}
+
+impl CityStats {
+    pub fn new(city: String) -> Self {
+        Self {
+            city,
+            total_offers: 0,
+            offers_by_domain: HashMap::new(),
+            last_offer_date: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    pub fn increment(&mut self, domain: &str) {
+        self.total_offers += 1;
+        *self.offers_by_domain.entry(domain.to_string()).or_insert(0) += 1;
+        self.last_offer_date = chrono::Utc::now().to_rfc3339();
+    }
 }
 
 impl CityScore {

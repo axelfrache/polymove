@@ -1,4 +1,4 @@
-use crate::domain::model::{CityScore, News};
+use crate::domain::model::{CityScore, CityStats, News};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -40,4 +40,14 @@ pub trait NewsRepository: Send + Sync {
         &self,
         limit: i64,
     ) -> impl std::future::Future<Output = Result<Vec<CityScore>, NewsError>> + Send;
+
+    fn get_city_stats(
+        &self,
+        city: &str,
+    ) -> impl std::future::Future<Output = Result<Option<CityStats>, NewsError>> + Send;
+
+    fn update_city_stats(
+        &self,
+        stats: &CityStats,
+    ) -> impl std::future::Future<Output = Result<(), NewsError>> + Send;
 }

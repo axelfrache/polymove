@@ -69,6 +69,21 @@ message GetTopCitiesResponse {
   repeated CityScore scores = 1;
 }
 
+message CityStats {
+  string city = 1;
+  int32 total_offers = 2;
+  map<string, int32> offers_by_domain = 3;
+  string last_offer_date = 4;
+}
+
+message GetCityStatsRequest {
+  string city = 1;
+}
+
+message GetCityStatsResponse {
+  CityStats stats = 1;
+}
+
 // Service Definition
 
 service Mi8Service {
@@ -77,4 +92,5 @@ service Mi8Service {
   rpc CreateNews(CreateNewsRequest) returns (CreateNewsResponse);
   rpc GetCityScore(GetCityScoreRequest) returns (GetCityScoreResponse);
   rpc GetTopCities(GetTopCitiesRequest) returns (GetTopCitiesResponse);
+  rpc GetCityStats(GetCityStatsRequest) returns (GetCityStatsResponse);
 }

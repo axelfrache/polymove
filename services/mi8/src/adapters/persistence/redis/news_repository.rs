@@ -1,4 +1,4 @@
-use crate::domain::model::{CityScore, News};
+use crate::domain::model::{CityScore, CityStats, News};
 use crate::domain::ports::news_repository::{NewsError, NewsRepository};
 use redis::aio::ConnectionManager; 
 use redis::FromRedisValue;
@@ -170,7 +170,7 @@ impl NewsRepository for RedisNewsRepository {
 
     async fn get_top_cities(&self, limit: i64) -> Result<Vec<CityScore>, NewsError> {
         let mut con = self.con_manager.clone();
-        
+
         let cities: Vec<String> = redis::cmd("ZRANGE")
             .arg("leaderboard:global")
             .arg(0)
@@ -187,5 +187,46 @@ impl NewsRepository for RedisNewsRepository {
         }
 
         Ok(scores)
+    }
+
+    async fn get_city_stats(&self, city: &str) -> Result<Option<CityStats>, NewsError> {
+        let mut con = self.con_manager.clone();
+        let key = format!("city_stats:{}", city);
+
+        let exists: bool = redis::cmd("EXISTS")
+            .arg(&key)
+            .query_async::<bool>(&mut con)
+            .await
+            .unwrap_or(false);
+
+        if !exists {
+            return Ok(None);
+        }
+
+        let payload: String = redis::cmd("GET")
+            .arg(&key)
+            .query_async::<String>(&mut con)
+            .await
+            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+
+        let stats = serde_json::from_str(&payload)
+            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+        Ok(Some(stats))
+    }
+
+    async fn update_city_stats(&self, stats: &CityStats) -> Result<(), NewsError> {
+        let mut con = self.con_manager.clone();
+        let key = format!("city_stats:{}", stats.city);
+        let serialized = serde_json::to_string(stats)
+            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+
+        redis::cmd("SET")
+            .arg(&key)
+            .arg(&serialized)
+            .query_async::<()>(&mut con)
+            .await
+            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 }

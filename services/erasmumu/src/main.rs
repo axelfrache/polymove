@@ -1,3 +1,4 @@
+use erasmumu::adapters::amqp::publisher::AmqpPublisher;
 use erasmumu::adapters::http;
 use erasmumu::adapters::persistence::mongo::offer_repository::MongoOfferRepository;
 use erasmumu::application::offer_service::OfferService;
@@ -24,7 +25,23 @@ async fn main() -> anyhow::Result<()> {
 
     let repository = MongoOfferRepository::new(collection);
     let service = Arc::new(OfferService::new(repository));
-    let app = http::router(service);
+
+    // Initialize AMQP publisher
+    let amqp_url = std::env::var("AMQP_URL")
+        .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
+
+    let publisher = match AmqpPublisher::new(&amqp_url).await {
+        Ok(p) => {
+            tracing::info!("Connected to RabbitMQ");
+            Some(Arc::new(p))
+        }
+        Err(e) => {
+            tracing::warn!("Failed to connect to RabbitMQ: {}. Continuing without messaging.", e);
+            None
+        }
+    };
+
+    let app = http::router(service, publisher);
 
     let host = std::env::var("ERASMUMU_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("ERASMUMU_PORT").unwrap_or_else(|_| "3001".to_string());

@@ -1,10 +1,11 @@
 use crate::application::news_service::NewsService;
-use crate::domain::model::{CityScore, News};
+use crate::domain::model::{CityScore, CityStats, News};
 use crate::domain::ports::news_repository::NewsRepository;
 use crate::mi8_proto::mi8_service_server::Mi8Service;
 use crate::mi8_proto::{
-    CityScore as ProtoCityScore, CreateNewsRequest, CreateNewsResponse, GetCityScoreRequest,
-    GetCityScoreResponse, GetLatestNewsInCityRequest, GetLatestNewsInCityResponse,
+    CityScore as ProtoCityScore, CityStats as ProtoCityStats, CreateNewsRequest,
+    CreateNewsResponse, GetCityScoreRequest, GetCityScoreResponse, GetCityStatsRequest,
+    GetCityStatsResponse, GetLatestNewsInCityRequest, GetLatestNewsInCityResponse,
     GetLatestNewsRequest, GetLatestNewsResponse, GetTopCitiesRequest, GetTopCitiesResponse,
     News as ProtoNews,
 };
@@ -45,6 +46,17 @@ impl From<ProtoNews> for News {
             tags: n.tags,
             city: n.city,
             country: n.country,
+        }
+    }
+}
+
+impl From<CityStats> for ProtoCityStats {
+    fn from(s: CityStats) -> Self {
+        ProtoCityStats {
+            city: s.city,
+            total_offers: s.total_offers,
+            offers_by_domain: s.offers_by_domain,
+            last_offer_date: s.last_offer_date,
         }
     }
 }
@@ -146,6 +158,23 @@ impl<R: NewsRepository + 'static> Mi8Service for Mi8ServiceImpl<R> {
 
         Ok(Response::new(GetTopCitiesResponse {
             scores: scores.into_iter().map(Into::into).collect(),
+        }))
+    }
+
+    async fn get_city_stats(
+        &self,
+        request: Request<GetCityStatsRequest>,
+    ) -> Result<Response<GetCityStatsResponse>, Status> {
+        let city = request.into_inner().city;
+        let stats = self
+            .service
+            .get_city_stats(&city)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found(format!("No stats for city: {}", city)))?;
+
+        Ok(Response::new(GetCityStatsResponse {
+            stats: Some(stats.into()),
         }))
     }
 }

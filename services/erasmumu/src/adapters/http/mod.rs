@@ -1,3 +1,4 @@
+use crate::adapters::amqp::publisher::AmqpPublisher;
 use crate::application::offer_service::{CreateOfferParams, OfferService, UpdateOfferParams};
 use crate::domain::offer::Offer;
 use crate::domain::ports::offer_repository::{OfferError, OfferRepository};
@@ -64,7 +65,17 @@ impl From<OfferError> for Response {
 
 type AppResult<T> = Result<T, Response>;
 
-pub fn router<R: OfferRepository + 'static>(service: Arc<OfferService<R>>) -> Router {
+pub struct AppState<R: OfferRepository> {
+    pub service: Arc<OfferService<R>>,
+    pub publisher: Option<Arc<AmqpPublisher>>,
+}
+
+pub fn router<R: OfferRepository + 'static>(
+    service: Arc<OfferService<R>>,
+    publisher: Option<Arc<AmqpPublisher>>,
+) -> Router {
+    let state = Arc::new(AppState { service, publisher });
+
     Router::new()
         .route("/health", get(health))
         .route("/offer", post(create_offer::<R>).get(list_offers::<R>))
@@ -74,15 +85,15 @@ pub fn router<R: OfferRepository + 'static>(service: Arc<OfferService<R>>) -> Ro
                 .put(update_offer::<R>)
                 .delete(delete_offer::<R>),
         )
-        .with_state(service)
+        .with_state(state)
 }
 
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-async fn create_offer<R: OfferRepository>(
-    State(service): State<Arc<OfferService<R>>>,
+async fn create_offer<R: OfferRepository + 'static>(
+    State(state): State<Arc<AppState<R>>>,
     Json(payload): Json<CreateOfferRequest>,
 ) -> AppResult<(StatusCode, Json<Offer>)> {
     let params = CreateOfferParams {
@@ -94,30 +105,53 @@ async fn create_offer<R: OfferRepository>(
         start_date: payload.start_date,
         end_date: payload.end_date,
     };
-    let offer = service.create_offer(params).await.map_err(Response::from)?;
+    let offer = state.service.create_offer(params).await.map_err(Response::from)?;
+
+    // Publish offer.created event
+    if let Some(publisher) = &state.publisher {
+        let event = serde_json::json!({
+            "id": offer.id,
+            "title": offer.title,
+            "city": offer.city,
+            "domain": offer.domain,
+            "salary": offer.salary,
+        });
+        if let Ok(payload) = serde_json::to_vec(&event) {
+            let pub_clone = publisher.clone();
+            tokio::spawn(async move {
+                if let Err(e) = pub_clone.publish("offer.created", &payload).await {
+                    tracing::error!("Failed to publish offer.created: {}", e);
+                } else {
+                    tracing::info!("Published offer.created event");
+                }
+            });
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(offer)))
 }
 
-async fn get_offer<R: OfferRepository>(
-    State(service): State<Arc<OfferService<R>>>,
+async fn get_offer<R: OfferRepository + 'static>(
+    State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
 ) -> AppResult<Json<Offer>> {
-    let offer = service.get_offer(&id).await.map_err(Response::from)?;
+    let offer = state.service.get_offer(&id).await.map_err(Response::from)?;
     Ok(Json(offer))
 }
 
-async fn list_offers<R: OfferRepository>(
-    State(service): State<Arc<OfferService<R>>>,
+async fn list_offers<R: OfferRepository + 'static>(
+    State(state): State<Arc<AppState<R>>>,
     Query(params): Query<ListParams>,
 ) -> AppResult<Json<Vec<Offer>>> {
     let offers = if let Some(domain) = params.domain {
-        service
+        state
+            .service
             .list_offers_by_domain(&domain)
             .await
             .map_err(Response::from)?
     } else if let Some(city) = params.city {
-        service
+        state
+            .service
             .list_offers_by_city(&city)
             .await
             .map_err(Response::from)?
@@ -134,8 +168,8 @@ async fn list_offers<R: OfferRepository>(
     Ok(Json(offers))
 }
 
-async fn update_offer<R: OfferRepository>(
-    State(service): State<Arc<OfferService<R>>>,
+async fn update_offer<R: OfferRepository + 'static>(
+    State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateOfferRequest>,
 ) -> AppResult<Json<Offer>> {
@@ -149,17 +183,18 @@ async fn update_offer<R: OfferRepository>(
         end_date: payload.end_date,
         available: payload.available,
     };
-    let offer = service
+    let offer = state
+        .service
         .update_offer(&id, params)
         .await
         .map_err(Response::from)?;
     Ok(Json(offer))
 }
 
-async fn delete_offer<R: OfferRepository>(
-    State(service): State<Arc<OfferService<R>>>,
+async fn delete_offer<R: OfferRepository + 'static>(
+    State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    service.delete_offer(&id).await.map_err(Response::from)?;
+    state.service.delete_offer(&id).await.map_err(Response::from)?;
     Ok(StatusCode::OK)
 }

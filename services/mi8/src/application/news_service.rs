@@ -1,4 +1,4 @@
-use crate::domain::model::{CityScore, News};
+use crate::domain::model::{CityScore, CityStats, News};
 use crate::domain::ports::news_repository::{NewsError, NewsRepository};
 
 pub struct NewsService<R: NewsRepository> {
@@ -96,5 +96,23 @@ impl<R: NewsRepository> NewsService<R> {
 
     pub async fn get_top_cities(&self, limit: i64) -> Result<Vec<CityScore>, NewsError> {
         self.repository.get_top_cities(limit).await
+    }
+
+    pub async fn get_city_stats(&self, city: &str) -> Result<Option<CityStats>, NewsError> {
+        self.repository.get_city_stats(city).await
+    }
+
+    pub async fn increment_city_offer_stats(
+        &self,
+        city: &str,
+        domain: &str,
+    ) -> Result<(), NewsError> {
+        let mut stats = self
+            .repository
+            .get_city_stats(city)
+            .await?
+            .unwrap_or_else(|| CityStats::new(city.to_string()));
+        stats.increment(domain);
+        self.repository.update_city_stats(&stats).await
     }
 }

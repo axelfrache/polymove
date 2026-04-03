@@ -1,3 +1,4 @@
+use mi8::adapters::amqp::subscriber::start_subscribers;
 use mi8::adapters::grpc::server::Mi8ServiceImpl;
 use mi8::adapters::persistence::redis::news_repository::RedisNewsRepository;
 use mi8::application::news_service::NewsService;
@@ -21,7 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let repository = RedisNewsRepository::new(con_manager);
     let service = Arc::new(NewsService::new(repository));
-    let mi8_service = Mi8ServiceImpl::new(service);
+    let mi8_service = Mi8ServiceImpl::new(service.clone());
+
+    // Start AMQP subscribers
+    let amqp_url = std::env::var("AMQP_URL")
+        .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
+    start_subscribers(&amqp_url, service).await;
 
     let host = std::env::var("MI8_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("MI8_PORT").unwrap_or_else(|_| "50051".to_string());
