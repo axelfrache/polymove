@@ -1,0 +1,104 @@
+use crate::ports::erasmumu_client::{ErasmumuClient, ErasmumuOffer};
+use reqwest::Client;
+use std::time::Duration;
+
+#[derive(Clone)]
+pub struct ErasmumuReqwestClient {
+    client: Client,
+    base_url: String,
+}
+
+impl ErasmumuReqwestClient {
+    pub fn new(base_url: String, timeout_ms: u64) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(timeout_ms))
+            .build()
+            .expect("Failed to build reqwest client");
+        Self { client, base_url }
+    }
+}
+
+impl ErasmumuClient for ErasmumuReqwestClient {
+    async fn fetch_offer(&self, offer_id: &str) -> Result<ErasmumuOffer, anyhow::Error> {
+        let url = format!("{}/offer/{}", self.base_url, offer_id);
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Erasmumu returned status {}",
+                response.status()
+            ));
+        }
+
+        response.json::<ErasmumuOffer>().await.map_err(Into::into)
+    }
+
+    async fn register_internship(&self, offer_id: &str) -> Result<bool, anyhow::Error> {
+        let url = format!("{}/offer/{}", self.base_url, offer_id);
+        let resp = self.client.get(&url).send().await?;
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(false);
+        }
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("Erasmumu returned {}", resp.status()));
+        }
+
+        let offer: serde_json::Value = resp.json().await?;
+        let available = offer
+            .get("available")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !available {
+            return Ok(false);
+        }
+
+        let update_resp = self
+            .client
+            .put(&url)
+            .json(&serde_json::json!({ "available": false }))
+            .send()
+            .await?;
+
+        if !update_resp.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Failed to update offer availability: {}",
+                update_resp.status()
+            ));
+        }
+
+        Ok(true)
+    }
+
+    async fn fetch_offers(
+        &self,
+        city: Option<String>,
+        domain: Option<String>,
+    ) -> Result<Vec<ErasmumuOffer>, anyhow::Error> {
+        let mut url = format!("{}/offer", self.base_url);
+        let mut params = Vec::new();
+
+        if let Some(c) = city {
+            params.push(format!("city={}", c));
+        } else if let Some(d) = domain {
+            params.push(format!("domain={}", d));
+        }
+
+        if !params.is_empty() {
+            url.push('?');
+            url.push_str(&params.join("&"));
+        }
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Erasmumu returned status {}",
+                response.status()
+            ));
+        }
+
+        let offers = response.json::<Vec<ErasmumuOffer>>().await?;
+        Ok(offers)
+    }
+}

@@ -1,0 +1,43 @@
+use mi8::adapters::amqp::subscriber::start_subscribers;
+use mi8::adapters::grpc::server::Mi8ServiceImpl;
+use mi8::adapters::persistence::redis::news_repository::RedisNewsRepository;
+use mi8::application::news_service::NewsService;
+use std::sync::Arc;
+use tonic::transport::Server;
+use tracing_subscriber::EnvFilter;
+
+use mi8::mi8_proto::mi8_service_server::Mi8ServiceServer;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+    let client = redis::Client::open(redis_url)?;
+    let con_manager = client.get_connection_manager().await?;
+
+    let repository = RedisNewsRepository::new(con_manager);
+    let service = Arc::new(NewsService::new(repository));
+    let mi8_service = Mi8ServiceImpl::new(service.clone());
+
+    // Start AMQP subscribers
+    let amqp_url = std::env::var("AMQP_URL")
+        .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
+    start_subscribers(&amqp_url, service).await;
+
+    let host = std::env::var("MI8_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("MI8_PORT").unwrap_or_else(|_| "50051".to_string());
+    let addr = format!("{}:{}", host, port).parse()?;
+
+    tracing::info!("Mi8 gRPC server listening on {}", addr);
+
+    Server::builder()
+        .add_service(Mi8ServiceServer::new(mi8_service))
+        .serve(addr)
+        .await?;
+
+    Ok(())
+}

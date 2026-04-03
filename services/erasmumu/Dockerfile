@@ -2,17 +2,18 @@ FROM rust:1.93.0-slim-bullseye AS builder
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+COPY services/erasmumu/Cargo.toml services/erasmumu/Cargo.lock ./services/erasmumu/
 
-RUN mkdir src && \
-    echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
+RUN mkdir -p services/erasmumu/src && \
+    echo "fn main() {println!(\"if you see this, the build broke\")}" > services/erasmumu/src/main.rs
 
-COPY . .
+WORKDIR /app/services/erasmumu
+RUN cargo build --release
+RUN rm -rf src
+
+COPY services/erasmumu/src ./src
 
 RUN touch src/main.rs
-
 RUN cargo build --release
 
 FROM debian:bullseye-slim
@@ -24,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/erasmumu /app/erasmumu
+COPY --from=builder /app/services/erasmumu/target/release/erasmumu /app/erasmumu
 
 EXPOSE 3001
 

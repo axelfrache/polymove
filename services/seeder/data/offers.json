@@ -1,0 +1,110 @@
+[
+  {
+    "title": "Machine Learning Engineer Intern",
+    "link": "https://careers.mobilitylabs.example/jobs/machine-learning-engineer-intern-paris",
+    "city": "Paris",
+    "domain": "AI",
+    "salary": 1550.0,
+    "start_date": "2026-05-04",
+    "end_date": "2026-09-30"
+  },
+  {
+    "title": "Computer Vision Engineer Intern",
+    "link": "https://careers.visionforge.example/jobs/computer-vision-engineer-intern-lyon",
+    "city": "Lyon",
+    "domain": "AI",
+    "salary": 1580.0,
+    "start_date": "2026-05-11",
+    "end_date": "2026-10-30"
+  },
+  {
+    "title": "Urban Analytics Intern",
+    "link": "https://jobs.citypulse.example/internships/urban-analytics-bordeaux",
+    "city": "Bordeaux",
+    "domain": "AI",
+    "salary": 1420.0,
+    "start_date": "2026-04-20",
+    "end_date": "2026-09-25"
+  },
+  {
+    "title": "Applied ML Research Intern",
+    "link": "https://research.oceandata.example/careers/applied-ml-research-intern-nice",
+    "city": "Nice",
+    "domain": "AI",
+    "salary": 1620.0,
+    "start_date": "2026-06-01",
+    "end_date": "2026-11-30"
+  },
+  {
+    "title": "Recommendation Systems Intern",
+    "link": "https://careers.streamline.example/jobs/recommendation-systems-intern-marseille",
+    "city": "Marseille",
+    "domain": "AI",
+    "salary": 1480.0,
+    "start_date": "2026-05-18",
+    "end_date": "2026-10-16"
+  },
+  {
+    "title": "Mobility Forecasting Analyst Intern",
+    "link": "https://careers.transitinsight.example/jobs/mobility-forecasting-analyst-toulouse",
+    "city": "Toulouse",
+    "domain": "Data",
+    "salary": 1460.0,
+    "start_date": "2026-04-27",
+    "end_date": "2026-10-09"
+  },
+  {
+    "title": "Platform Engineering Intern",
+    "link": "https://jobs.cloudrail.example/openings/platform-engineering-intern-paris",
+    "city": "Paris",
+    "domain": "IT",
+    "salary": 1650.0,
+    "start_date": "2026-04-10",
+    "end_date": "2026-09-10"
+  },
+  {
+    "title": "Site Reliability Intern",
+    "link": "https://careers.scaleforge.example/jobs/site-reliability-intern-lille",
+    "city": "Lille",
+    "domain": "IT",
+    "salary": 1510.0,
+    "start_date": "2026-05-05",
+    "end_date": "2026-10-05"
+  },
+  {
+    "title": "Backend Engineer Intern - Smart City APIs",
+    "link": "https://jobs.urbansync.example/internships/backend-engineer-smart-city-grenoble",
+    "city": "Grenoble",
+    "domain": "IT",
+    "salary": 1540.0,
+    "start_date": "2026-04-28",
+    "end_date": "2026-09-30"
+  },
+  {
+    "title": "Cybersecurity Analyst Intern",
+    "link": "https://careers.secureops.example/jobs/cybersecurity-analyst-intern-nantes",
+    "city": "Nantes",
+    "domain": "IT",
+    "salary": 1490.0,
+    "start_date": "2026-05-17",
+    "end_date": "2026-10-23"
+  },
+  {
+    "title": "Product Data Analyst Intern",
+    "link": "https://jobs.capitalflow.example/students/product-data-analyst-intern-bordeaux",
+    "city": "Bordeaux",
+    "domain": "Finance",
+    "salary": 1470.0,
+    "start_date": "2026-04-21",
+    "end_date": "2026-09-18"
+  },
+  {
+    "title": "Supply Chain Data Analyst Intern",
+    "link": "https://careers.greengrid.example/jobs/supply-chain-data-analyst-lyon",
+    "city": "Lyon",
+    "domain": "Data",
+    "salary": 1440.0,
+    "start_date": "2026-05-08",
+    "end_date": "2026-10-16"
+  }
+]

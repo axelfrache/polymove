@@ -1,8 +1,8 @@
 services:
   polytech:
     build:
-      context: ./services/polytech
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/polytech/Dockerfile
     ports:
       - "${POLYTECH_PORT}:${POLYTECH_PORT}"
     environment:
@@ -10,16 +10,23 @@ services:
       - POLYTECH_HOST=0.0.0.0
       - POLYTECH_PORT=${POLYTECH_PORT}
       - RUST_LOG=polytech=debug,tower_http=debug
+      - MI8_GRPC_ADDR=http://mi8:50051
+      - ERASMUMU_BASE_URL=http://erasmumu:${ERASMUMU_PORT}
+      - AMQP_URL=amqp://guest:guest@rabbitmq:5672/%2f
     depends_on:
       postgres:
+        condition: service_healthy
+      mi8:
+        condition: service_started
+      rabbitmq:
         condition: service_healthy
     networks:
       - polymove-net
 
   erasmumu:
     build:
-      context: ./services/erasmumu
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/erasmumu/Dockerfile
     ports:
       - "${ERASMUMU_PORT}:${ERASMUMU_PORT}"
     environment:
@@ -28,11 +35,97 @@ services:
       - ERASMUMU_HOST=0.0.0.0
       - ERASMUMU_PORT=${ERASMUMU_PORT}
       - RUST_LOG=erasmumu=debug,tower_http=debug
+      - AMQP_URL=amqp://guest:guest@rabbitmq:5672/%2f
     depends_on:
       mongo:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - polymove-net
+
+  mi8:
+    build:
+      context: .
+      dockerfile: services/mi8/Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      - REDIS_URL=redis://redis:6379/
+      - MI8_HOST=0.0.0.0
+      - MI8_PORT=50051
+      - RUST_LOG=mi8=debug,tower_http=debug
+      - AMQP_URL=amqp://guest:guest@rabbitmq:5672/%2f
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - polymove-net
+
+  laposte:
+    build:
+      context: .
+      dockerfile: services/laposte/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_DB=laposte
+      - LAPOSTE_HOST=0.0.0.0
+      - LAPOSTE_PORT=3002
+      - RUST_LOG=laposte=debug,tower_http=debug
+      - AMQP_URL=amqp://guest:guest@rabbitmq:5672/%2f
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - polymove-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_LAPOSTE_BASE_URL: /laposte-api
+    ports:
+      - "5173:80"
+    depends_on:
+      - polytech
+    networks:
+      - polymove-net
+
+  colporteur:
+    build:
+      context: .
+      dockerfile: services/colporteur/Dockerfile
+    environment:
+      - AMQP_URL=amqp://guest:guest@rabbitmq:5672/%2f
+      - RUST_LOG=info
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - polymove-net
+    profiles: [ "tools" ]
+
+  seeder:
+    build:
+      context: .
+      dockerfile: services/seeder/Dockerfile
+    environment:
+      - ERASMUMU_BASE_URL=http://erasmumu:${ERASMUMU_PORT}
+      - RUST_LOG=info
+    depends_on:
+      erasmumu:
+        condition: service_started
+    networks:
+      - polymove-net
+    profiles: [ "seed" ]
 
   postgres:
     image: postgres:18-alpine
@@ -68,6 +161,37 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - polymove-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - polymove-net
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 networks:
   polymove-net:
     driver: bridge
@@ -75,3 +199,5 @@ networks:
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
+  rabbitmq_data:
