@@ -2,7 +2,7 @@ use crate::application::subscriber_service::SubscriberService;
 use crate::ports::subscriber_repository::SubscriberRepository;
 use futures::StreamExt;
 use lapin::{
-    options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
+    Channel, Connection, ConnectionProperties, ExchangeKind, options::*, types::FieldTable,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -19,25 +19,6 @@ struct OfferCreatedEvent {
     pub title: String,
     pub city: String,
     pub domain: String,
-}
-
-async fn setup_channel(amqp_url: &str) -> Result<Channel, lapin::Error> {
-    let conn = Connection::connect(amqp_url, ConnectionProperties::default()).await?;
-    let channel = conn.create_channel().await?;
-
-    channel
-        .exchange_declare(
-            "polymove.events",
-            ExchangeKind::Topic,
-            ExchangeDeclareOptions {
-                durable: true,
-                ..Default::default()
-            },
-            FieldTable::default(),
-        )
-        .await?;
-
-    Ok(channel)
 }
 
 pub async fn setup_and_subscribe<R: SubscriberRepository + 'static>(

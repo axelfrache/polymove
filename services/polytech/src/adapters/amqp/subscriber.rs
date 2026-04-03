@@ -2,7 +2,7 @@ use crate::application::notification_service::NotificationService;
 use crate::ports::student_repository::StudentRepository;
 use futures::StreamExt;
 use lapin::{
-    options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
+    Channel, Connection, ConnectionProperties, ExchangeKind, options::*, types::FieldTable,
 };
 use serde::Deserialize;
 use std::sync::Arc;

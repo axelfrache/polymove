@@ -1,10 +1,7 @@
 use crate::domain::subscriber::Subscriber;
 use crate::ports::subscriber_repository::{SubscriberError, SubscriberRepository};
 use futures::TryStreamExt;
-use mongodb::{
-    bson::doc,
-    Collection,
-};
+use mongodb::{Collection, bson::doc};
 
 pub struct MongoSubscriberRepository {
     collection: Collection<Subscriber>,

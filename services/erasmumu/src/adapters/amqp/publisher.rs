@@ -1,6 +1,6 @@
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, Channel, Connection, ConnectionProperties,
-    ExchangeKind,
+    BasicProperties, Channel, Connection, ConnectionProperties, ExchangeKind, options::*,
+    types::FieldTable,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;

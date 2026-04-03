@@ -2,7 +2,6 @@ pub mod erasmumu_client;
 pub mod offers;
 
 use crate::adapters::amqp::publisher::AmqpPublisher;
-use crate::adapters::grpc::mi8_client::Mi8GrpcClient;
 use crate::application::notification_service::NotificationService;
 use crate::application::offer_aggregation_service::OfferAggregationService;
 use crate::application::student_service::StudentService;
@@ -108,17 +107,36 @@ where
 
     Router::<Arc<AppState<R, E, M>>>::new()
         .route("/health", get(health))
-        .route("/student", post(create_student::<R, E, M>).get(list_students::<R, E, M>))
+        .route(
+            "/student",
+            post(create_student::<R, E, M>).get(list_students::<R, E, M>),
+        )
         .route(
             "/student/{id}",
             get(get_student::<R, E, M>).delete(delete_student::<R, E, M>),
         )
         .route("/mi8/latest", get(get_latest_news::<R, E, M>))
-        .route("/mi8/latest-in-city", get(get_latest_news_in_city::<R, E, M>))
+        .route(
+            "/mi8/latest-in-city",
+            get(get_latest_news_in_city::<R, E, M>),
+        )
         .route("/offers", get(offers::get_offers::<R, E, M>))
-        .route("/students/{id}/recommended-offers", get(offers::get_recommended_offers::<R, E, M>))
-        .route("/students/{id}/notifications", get(get_notifications::<R, E, M>))
-        .route("/notifications/{id}/read", put(mark_notification_read::<R, E, M>))
+        .route(
+            "/students/{id}/recommended-offers",
+            get(offers::get_recommended_offers::<R, E, M>),
+        )
+        .route(
+            "/students/{id}/notifications",
+            get(get_notifications::<R, E, M>),
+        )
+        .route(
+            "/students/{id}/internships",
+            get(list_internships::<R, E, M>),
+        )
+        .route(
+            "/notifications/{id}/read",
+            put(mark_notification_read::<R, E, M>),
+        )
         .route("/internship", post(apply_internship::<R, E, M>))
         .route("/internship/{id}", get(get_internship::<R, E, M>))
         .layer(cors)
@@ -155,7 +173,10 @@ where
         if let Ok(payload_bytes) = serde_json::to_vec(&event) {
             let pub_clone = publisher.clone();
             tokio::spawn(async move {
-                if let Err(e) = pub_clone.publish("student.registered", &payload_bytes).await {
+                if let Err(e) = pub_clone
+                    .publish("student.registered", &payload_bytes)
+                    .await
+                {
                     tracing::error!("Failed to publish student.registered: {}", e);
                 } else {
                     tracing::info!("Published student.registered event");
@@ -176,8 +197,13 @@ where
     E: ErasmumuClient + Send + Sync + 'static,
     M: Mi8Client + Send + Sync + 'static,
 {
-    let uuid = Uuid::parse_str(&id).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID").into_response())?;
-    let student = state.service.get_student(uuid).await.map_err(Response::from)?;
+    let uuid = Uuid::parse_str(&id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID").into_response())?;
+    let student = state
+        .service
+        .get_student(uuid)
+        .await
+        .map_err(Response::from)?;
     Ok(Json(student))
 }
 
@@ -207,7 +233,11 @@ where
     E: ErasmumuClient + Send + Sync + 'static,
     M: Mi8Client + Send + Sync + 'static,
 {
-    state.service.delete_student(id).await.map_err(Response::from)?;
+    state
+        .service
+        .delete_student(id)
+        .await
+        .map_err(Response::from)?;
     Ok(StatusCode::OK)
 }
 
@@ -313,6 +343,15 @@ pub struct InternshipResponse {
     pub message: String,
 }
 
+#[derive(Serialize)]
+pub struct AppliedInternshipResponse {
+    pub id: Uuid,
+    pub offer_id: String,
+    pub approved: bool,
+    pub message: String,
+    pub offer: Option<crate::ports::erasmumu_client::ErasmumuOffer>,
+}
+
 async fn apply_internship<R, E, M>(
     State(state): State<Arc<AppState<R, E, M>>>,
     Json(payload): Json<InternshipRequest>,
@@ -325,7 +364,11 @@ where
     let uuid = Uuid::parse_str(&payload.student_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid student UUID").into_response())?;
 
-    state.service.get_student(uuid).await.map_err(Response::from)?;
+    state
+        .service
+        .get_student(uuid)
+        .await
+        .map_err(Response::from)?;
 
     let approved = state
         .erasmumu_client
@@ -333,7 +376,11 @@ where
         .await
         .map_err(|e| {
             tracing::error!("Erasmumu internship registration error: {}", e);
-            (StatusCode::SERVICE_UNAVAILABLE, "Erasmumu service unavailable").into_response()
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Erasmumu service unavailable",
+            )
+                .into_response()
         })?;
 
     let message = if approved {
@@ -381,4 +428,68 @@ where
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
             }
         })
+}
+
+async fn list_internships<R, E, M>(
+    State(state): State<Arc<AppState<R, E, M>>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<AppliedInternshipResponse>>>
+where
+    R: StudentRepository + Send + Sync + 'static,
+    E: ErasmumuClient + Send + Sync + 'static,
+    M: Mi8Client + Send + Sync + 'static,
+{
+    let student_id = Uuid::parse_str(&id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid student UUID").into_response())?;
+
+    state
+        .service
+        .get_student(student_id)
+        .await
+        .map_err(Response::from)?;
+
+    let internships = state
+        .internship_repository
+        .list_by_student(student_id)
+        .await
+        .map_err(|e| match e {
+            crate::ports::internship_repository::InternshipError::NotFound => {
+                (StatusCode::NOT_FOUND, "Internship not found").into_response()
+            }
+            crate::ports::internship_repository::InternshipError::DatabaseError(msg) => {
+                tracing::error!("Database error: {}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+            }
+        })?;
+
+    let mut response = Vec::with_capacity(internships.len());
+
+    for internship in internships {
+        let offer = match state
+            .erasmumu_client
+            .fetch_offer(&internship.offer_id)
+            .await
+        {
+            Ok(offer) => Some(offer),
+            Err(error) => {
+                tracing::warn!(
+                    "Failed to fetch offer {} for internship {}: {}",
+                    internship.offer_id,
+                    internship.id,
+                    error
+                );
+                None
+            }
+        };
+
+        response.push(AppliedInternshipResponse {
+            id: internship.id,
+            offer_id: internship.offer_id.clone(),
+            approved: internship.approved,
+            message: internship.message,
+            offer,
+        });
+    }
+
+    Ok(Json(response))
 }

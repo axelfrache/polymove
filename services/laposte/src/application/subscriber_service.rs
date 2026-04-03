@@ -22,10 +22,7 @@ impl<R: SubscriberRepository> SubscriberService<R> {
         self.repository.create(&subscriber).await
     }
 
-    pub async fn get_subscriber(
-        &self,
-        student_id: &str,
-    ) -> Result<Subscriber, SubscriberError> {
+    pub async fn get_subscriber(&self, student_id: &str) -> Result<Subscriber, SubscriberError> {
         self.repository
             .get(student_id)
             .await?
@@ -62,10 +59,7 @@ impl<R: SubscriberRepository> SubscriberService<R> {
         self.repository.delete(student_id).await
     }
 
-    pub async fn list_by_domain(
-        &self,
-        domain: &str,
-    ) -> Result<Vec<Subscriber>, SubscriberError> {
+    pub async fn list_by_domain(&self, domain: &str) -> Result<Vec<Subscriber>, SubscriberError> {
         self.repository.list_by_domain(domain).await
     }
 

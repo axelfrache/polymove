@@ -1,14 +1,14 @@
 use crate::adapters::http::AppState;
-use crate::application::offer_aggregation_service::{EnrichedOffer, OfferAggregationService};
+use crate::application::offer_aggregation_service::EnrichedOffer;
 use crate::domain::student::Student;
 use crate::ports::erasmumu_client::ErasmumuClient;
 use crate::ports::mi8_client::Mi8Client;
 use crate::ports::student_repository::StudentRepository;
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

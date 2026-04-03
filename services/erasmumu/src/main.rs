@@ -36,7 +36,10 @@ async fn main() -> anyhow::Result<()> {
             Some(Arc::new(p))
         }
         Err(e) => {
-            tracing::warn!("Failed to connect to RabbitMQ: {}. Continuing without messaging.", e);
+            tracing::warn!(
+                "Failed to connect to RabbitMQ: {}. Continuing without messaging.",
+                e
+            );
             None
         }
     };

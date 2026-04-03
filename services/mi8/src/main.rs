@@ -2,7 +2,6 @@ use mi8::adapters::amqp::subscriber::start_subscribers;
 use mi8::adapters::grpc::server::Mi8ServiceImpl;
 use mi8::adapters::persistence::redis::news_repository::RedisNewsRepository;
 use mi8::application::news_service::NewsService;
-use mi8::domain::ports::news_repository::NewsRepository;
 use std::sync::Arc;
 use tonic::transport::Server;
 use tracing_subscriber::EnvFilter;

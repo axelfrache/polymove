@@ -1,7 +1,7 @@
 use crate::domain::model::{CityScore, CityStats, News};
 use crate::domain::ports::news_repository::{NewsError, NewsRepository};
-use redis::aio::ConnectionManager; 
 use redis::FromRedisValue;
+use redis::aio::ConnectionManager;
 
 pub struct RedisNewsRepository {
     con_manager: ConnectionManager,
@@ -16,9 +16,9 @@ impl RedisNewsRepository {
 impl NewsRepository for RedisNewsRepository {
     async fn create_news(&self, news: &News) -> Result<(), NewsError> {
         let mut con = self.con_manager.clone();
-        let serialized_news = serde_json::to_string(news)
-            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
-        
+        let serialized_news =
+            serde_json::to_string(news).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+
         redis::cmd("HSET")
             .arg("news")
             .arg(&news.id)
@@ -26,7 +26,7 @@ impl NewsRepository for RedisNewsRepository {
             .query_async::<()>(&mut con)
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
-        
+
         let timestamp = chrono::Utc::now().timestamp_millis();
         redis::cmd("ZADD")
             .arg("timeline:global")
@@ -35,7 +35,7 @@ impl NewsRepository for RedisNewsRepository {
             .query_async::<()>(&mut con)
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
-        
+
         let city_key = format!("timeline:city:{}", news.city);
         redis::cmd("ZADD")
             .arg(&city_key)
@@ -50,7 +50,7 @@ impl NewsRepository for RedisNewsRepository {
 
     async fn get_latest_news(&self, limit: i64) -> Result<Vec<News>, NewsError> {
         let mut con = self.con_manager.clone();
-        
+
         let ids: Vec<String> = redis::cmd("ZREVRANGE")
             .arg("timeline:global")
             .arg(0)
@@ -72,10 +72,10 @@ impl NewsRepository for RedisNewsRepository {
 
         let mut news_list = Vec::new();
         for val in values {
-            if let Ok(s) = String::from_redis_value(&val) {
-                 if let Ok(n) = serde_json::from_str::<News>(&s) {
-                    news_list.push(n);
-                }
+            if let Ok(s) = String::from_redis_value(&val)
+                && let Ok(n) = serde_json::from_str::<News>(&s)
+            {
+                news_list.push(n);
             }
         }
 
@@ -111,10 +111,10 @@ impl NewsRepository for RedisNewsRepository {
 
         let mut news_list = Vec::new();
         for val in values {
-             if let Ok(s) = String::from_redis_value(&val) {
-                if let Ok(n) = serde_json::from_str::<News>(&s) {
-                    news_list.push(n);
-                }
+            if let Ok(s) = String::from_redis_value(&val)
+                && let Ok(n) = serde_json::from_str::<News>(&s)
+            {
+                news_list.push(n);
             }
         }
 
@@ -124,13 +124,13 @@ impl NewsRepository for RedisNewsRepository {
     async fn get_city_score(&self, city: &str) -> Result<Option<CityScore>, NewsError> {
         let mut con = self.con_manager.clone();
         let key = format!("score:{}", city);
-        
+
         let exists: bool = redis::cmd("EXISTS")
             .arg(&key)
             .query_async::<bool>(&mut con)
             .await
             .unwrap_or(false);
-            
+
         if !exists {
             return Ok(None);
         }
@@ -140,15 +140,17 @@ impl NewsRepository for RedisNewsRepository {
             .query_async::<String>(&mut con)
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
-            
-        let score = serde_json::from_str(&payload).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+
+        let score =
+            serde_json::from_str(&payload).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
         Ok(Some(score))
     }
 
     async fn update_city_score(&self, score: &CityScore) -> Result<(), NewsError> {
         let mut con = self.con_manager.clone();
         let key = format!("score:{}", score.city);
-        let serialized = serde_json::to_string(score).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+        let serialized =
+            serde_json::to_string(score).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
 
         redis::cmd("SET")
             .arg(&key)
@@ -156,7 +158,7 @@ impl NewsRepository for RedisNewsRepository {
             .query_async::<()>(&mut con)
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
-        
+
         redis::cmd("ZADD")
             .arg("leaderboard:global")
             .arg(score.total_score())
@@ -209,16 +211,16 @@ impl NewsRepository for RedisNewsRepository {
             .await
             .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
 
-        let stats = serde_json::from_str(&payload)
-            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+        let stats =
+            serde_json::from_str(&payload).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
         Ok(Some(stats))
     }
 
     async fn update_city_stats(&self, stats: &CityStats) -> Result<(), NewsError> {
         let mut con = self.con_manager.clone();
         let key = format!("city_stats:{}", stats.city);
-        let serialized = serde_json::to_string(stats)
-            .map_err(|e| NewsError::DatabaseError(e.to_string()))?;
+        let serialized =
+            serde_json::to_string(stats).map_err(|e| NewsError::DatabaseError(e.to_string()))?;
 
         redis::cmd("SET")
             .arg(&key)

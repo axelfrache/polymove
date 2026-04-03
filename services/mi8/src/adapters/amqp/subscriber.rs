@@ -3,7 +3,7 @@ use crate::domain::model::News;
 use crate::domain::ports::news_repository::NewsRepository;
 use futures::StreamExt;
 use lapin::{
-    options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
+    Channel, Connection, ConnectionProperties, ExchangeKind, options::*, types::FieldTable,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -93,7 +93,11 @@ async fn setup_news_subscriber<R: NewsRepository + 'static>(
                 Ok(delivery) => {
                     match serde_json::from_slice::<News>(&delivery.data) {
                         Ok(news) => {
-                            tracing::info!("MI8 received news.created: {} in {}", news.name, news.city);
+                            tracing::info!(
+                                "MI8 received news.created: {} in {}",
+                                news.name,
+                                news.city
+                            );
                             if let Err(e) = service.create_news(news).await {
                                 tracing::error!("Failed to process news: {}", e);
                             }

@@ -37,9 +37,7 @@ impl From<SubscriberError> for Response {
 
 type AppResult<T> = Result<T, Response>;
 
-pub fn router<R: SubscriberRepository + 'static>(
-    service: Arc<SubscriberService<R>>,
-) -> Router {
+pub fn router<R: SubscriberRepository + 'static>(service: Arc<SubscriberService<R>>) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -85,7 +83,12 @@ async fn update_subscriber<R: SubscriberRepository>(
     Json(payload): Json<UpdateSubscriberRequest>,
 ) -> AppResult<Json<Subscriber>> {
     let subscriber = service
-        .update_subscriber(&student_id, payload.channel, payload.contact, payload.enabled)
+        .update_subscriber(
+            &student_id,
+            payload.channel,
+            payload.contact,
+            payload.enabled,
+        )
         .await
         .map_err(Response::from)?;
     Ok(Json(subscriber))

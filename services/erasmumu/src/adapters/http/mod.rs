@@ -105,7 +105,11 @@ async fn create_offer<R: OfferRepository + 'static>(
         start_date: payload.start_date,
         end_date: payload.end_date,
     };
-    let offer = state.service.create_offer(params).await.map_err(Response::from)?;
+    let offer = state
+        .service
+        .create_offer(params)
+        .await
+        .map_err(Response::from)?;
 
     // Publish offer.created event
     if let Some(publisher) = &state.publisher {
@@ -195,6 +199,10 @@ async fn delete_offer<R: OfferRepository + 'static>(
     State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    state.service.delete_offer(&id).await.map_err(Response::from)?;
+    state
+        .service
+        .delete_offer(&id)
+        .await
+        .map_err(Response::from)?;
     Ok(StatusCode::OK)
 }

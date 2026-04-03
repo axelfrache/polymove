@@ -16,7 +16,10 @@ impl PostgresInternshipRepository {
 }
 
 impl InternshipRepository for PostgresInternshipRepository {
-    fn save<'a>(&'a self, internship: &'a Internship) -> BoxFuture<'a, Result<Internship, InternshipError>> {
+    fn save<'a>(
+        &'a self,
+        internship: &'a Internship,
+    ) -> BoxFuture<'a, Result<Internship, InternshipError>> {
         Box::pin(async move {
             sqlx::query_as::<_, Internship>(
                 r#"
@@ -50,6 +53,26 @@ impl InternshipRepository for PostgresInternshipRepository {
             .await
             .map_err(|e| InternshipError::DatabaseError(e.to_string()))?
             .ok_or(InternshipError::NotFound)
+        })
+    }
+
+    fn list_by_student(
+        &self,
+        student_id: Uuid,
+    ) -> BoxFuture<'_, Result<Vec<Internship>, InternshipError>> {
+        Box::pin(async move {
+            sqlx::query_as::<_, Internship>(
+                r#"
+                SELECT id, student_id, offer_id, approved, message
+                FROM internships
+                WHERE student_id = $1
+                ORDER BY id DESC
+                "#,
+            )
+            .bind(student_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| InternshipError::DatabaseError(e.to_string()))
         })
     }
 }

@@ -1,22 +1,15 @@
 use dotenvy::dotenv;
 use polytech::{
     adapters::{
-        amqp::{
-            publisher::AmqpPublisher,
-            subscriber::start_offer_subscriber,
-        },
+        amqp::{publisher::AmqpPublisher, subscriber::start_offer_subscriber},
         grpc::mi8_client::Mi8GrpcClient,
         http,
         persistence::postgres::{
-            PostgresStudentRepository,
-            internship_repository::PostgresInternshipRepository,
+            PostgresStudentRepository, internship_repository::PostgresInternshipRepository,
             notification_repository::PostgresNotificationRepository,
         },
     },
-    application::{
-        notification_service::NotificationService,
-        student_service::StudentService,
-    },
+    application::{notification_service::NotificationService, student_service::StudentService},
 };
 use sqlx::postgres::PgPoolOptions;
 use std::{env, net::SocketAddr, sync::Arc};
@@ -38,8 +31,10 @@ async fn main() -> anyhow::Result<()> {
     let port = env::var("POLYTECH_PORT").unwrap_or_else(|_| "3000".to_string());
     let addr_str = format!("{}:{}", host, port);
 
-    let mi8_addr = env::var("MI8_GRPC_ADDR").unwrap_or_else(|_| "http://127.0.0.1:50051".to_string());
-    let erasmumu_base_url = env::var("ERASMUMU_BASE_URL").unwrap_or_else(|_| "http://erasmumu:8082".to_string());
+    let mi8_addr =
+        env::var("MI8_GRPC_ADDR").unwrap_or_else(|_| "http://127.0.0.1:50051".to_string());
+    let erasmumu_base_url =
+        env::var("ERASMUMU_BASE_URL").unwrap_or_else(|_| "http://erasmumu:8082".to_string());
     let upstream_timeout_ms: u64 = env::var("UPSTREAM_TIMEOUT_MS")
         .unwrap_or_else(|_| "800".to_string())
         .parse()
@@ -49,10 +44,12 @@ async fn main() -> anyhow::Result<()> {
     let mi8_client = Arc::new(Mi8GrpcClient::connect(mi8_addr, upstream_timeout_ms).await?);
 
     tracing::info!("Initializing Erasmumu client at {}...", erasmumu_base_url);
-    let erasmumu_client = Arc::new(polytech::adapters::http::erasmumu_client::ErasmumuReqwestClient::new(
-        erasmumu_base_url,
-        upstream_timeout_ms,
-    ));
+    let erasmumu_client = Arc::new(
+        polytech::adapters::http::erasmumu_client::ErasmumuReqwestClient::new(
+            erasmumu_base_url,
+            upstream_timeout_ms,
+        ),
+    );
 
     tracing::info!("Connecting to database...");
     let pool = PgPoolOptions::new()
@@ -65,11 +62,13 @@ async fn main() -> anyhow::Result<()> {
     let repository = PostgresStudentRepository::new(pool.clone());
     let service = Arc::new(StudentService::new(repository.clone()));
 
-    let offer_aggregation_service = Arc::new(polytech::application::offer_aggregation_service::OfferAggregationService::new(
-        Arc::new(repository.clone()),
-        erasmumu_client.clone(),
-        mi8_client.clone(),
-    ));
+    let offer_aggregation_service = Arc::new(
+        polytech::application::offer_aggregation_service::OfferAggregationService::new(
+            Arc::new(repository.clone()),
+            erasmumu_client.clone(),
+            mi8_client.clone(),
+        ),
+    );
 
     let internship_repository = Arc::new(PostgresInternshipRepository::new(pool.clone()));
 
@@ -86,13 +85,21 @@ async fn main() -> anyhow::Result<()> {
             Some(Arc::new(p))
         }
         Err(e) => {
-            tracing::warn!("Failed to connect to RabbitMQ: {}. Continuing without messaging.", e);
+            tracing::warn!(
+                "Failed to connect to RabbitMQ: {}. Continuing without messaging.",
+                e
+            );
             None
         }
     };
 
     // Start offer.created subscriber
-    start_offer_subscriber(&amqp_url, notification_service.clone(), Arc::new(repository)).await;
+    start_offer_subscriber(
+        &amqp_url,
+        notification_service.clone(),
+        Arc::new(repository),
+    )
+    .await;
 
     let app = http::router(
         service,
@@ -102,7 +109,8 @@ async fn main() -> anyhow::Result<()> {
         internship_repository,
         notification_service,
         publisher,
-    ).await;
+    )
+    .await;
 
     let addr: SocketAddr = addr_str.parse()?;
     tracing::info!("Listening on {}", addr);

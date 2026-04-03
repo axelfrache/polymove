@@ -1,6 +1,6 @@
 use chrono::Utc;
 use lapin::{
-    options::*, types::FieldTable, BasicProperties, Connection, ConnectionProperties, ExchangeKind,
+    BasicProperties, Connection, ConnectionProperties, ExchangeKind, options::*, types::FieldTable,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -43,9 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Connected to RabbitMQ, exchange declared");
 
-    let cities = vec!["Paris", "Nice", "Lyon", "Marseille", "Bordeaux", "Toulouse"];
-    let sources = vec!["Le Monde", "Nice Matin", "AFP", "Reuters", "TechCrunch"];
-    let tags_list = vec![
+    let cities = ["Paris", "Nice", "Lyon", "Marseille", "Bordeaux", "Toulouse"];
+    let sources = ["Le Monde", "Nice Matin", "AFP", "Reuters", "TechCrunch"];
+    let tags_list = [
         "innovation",
         "culture",
         "healthcare",
