@@ -9,31 +9,44 @@ import { Badge } from "@/components/ui/badge";
 
 export function NewsList({ news }: { news: EnrichedNews[] }) {
     if (!news || news.length === 0) {
-        return <p className="text-sm text-muted-foreground mt-4">No recent news available.</p>;
+        return (
+            <p className="text-sm text-muted-foreground">
+                No recent city signals for this offer yet.
+            </p>
+        );
     }
 
     return (
-        <Accordion type="single" collapsible className="w-full mt-4">
-            <AccordionItem value="news">
-                <AccordionTrigger className="text-sm font-semibold">
-                    Latest City News ({news.length})
+        <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="news" className="border-none">
+                <AccordionTrigger className="py-0 text-sm font-medium hover:no-underline">
+                    {news.length} recent city signal{news.length > 1 ? "s" : ""}
                 </AccordionTrigger>
-                <AccordionContent>
-                    <div className="space-y-4">
-                        {news.map((item, idx) => (
-                            <div key={idx} className="border-l-2 border-primary pl-3 py-1">
-                                <h4 className="font-medium text-sm">{item.title}</h4>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                                    <span>{item.source}</span>
-                                    <span>•</span>
-                                    <span>{item.date.includes('T') ? new Date(item.date).toLocaleDateString() : item.date}</span>
-                                </div>
-                                <div className="flex gap-1 mt-2 flex-wrap">
-                                    {item.tags.map((tag) => (
-                                        <Badge variant="secondary" key={tag} className="text-[10px]">
-                                            {tag}
+                <AccordionContent className="pt-3">
+                    <div className="space-y-3">
+                        {news.slice(0, 3).map((item, index) => (
+                            <div
+                                key={`${item.title}-${index}`}
+                                className="rounded-lg border bg-muted/30 px-3 py-3"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1">
+                                        <p className="text-sm font-medium leading-snug">{item.title}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {item.source} ·{" "}
+                                            {item.date.includes("T")
+                                                ? new Date(item.date).toLocaleDateString("en-GB", {
+                                                      day: "2-digit",
+                                                      month: "short",
+                                                  })
+                                                : item.date}
+                                        </p>
+                                    </div>
+                                    {item.tags[0] && (
+                                        <Badge variant="secondary" className="shrink-0 capitalize">
+                                            {item.tags[0]}
                                         </Badge>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
                         ))}

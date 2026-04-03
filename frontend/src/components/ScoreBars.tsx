@@ -1,51 +1,31 @@
 import type { EnrichedScores } from "../types";
 import { Progress } from "@/components/ui/progress";
-import { Heart, TrendingUp, Palette, Shield } from "lucide-react";
-
-const MAX_SCORE = 2000;
-
-const metrics = [
-    {
-        key: "quality_of_life" as const,
-        label: "Quality of Life",
-        icon: Heart,
-        color: "text-emerald-500",
-    },
-    {
-        key: "economy" as const,
-        label: "Economy",
-        icon: TrendingUp,
-        color: "text-blue-500",
-    },
-    {
-        key: "culture" as const,
-        label: "Culture",
-        icon: Palette,
-        color: "text-violet-500",
-    },
-    {
-        key: "safety" as const,
-        label: "Safety",
-        icon: Shield,
-        color: "text-amber-500",
-    },
-];
+import { offerMetrics, hasMetricSignals, normalizeMetricScore } from "@/lib/offer-metrics";
 
 export function ScoreBars({ scores }: { scores: EnrichedScores }) {
+    if (!hasMetricSignals(scores)) {
+        return (
+            <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                City metrics will appear once local signals are available.
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-2.5 mt-4">
-            {metrics.map(({ key, label, icon: Icon, color }) => {
-                const raw = scores[key] ?? 0;
-                const pct = Math.min(100, Math.round((raw / MAX_SCORE) * 100));
+        <div className="space-y-3">
+            {offerMetrics.map(({ key, label, description }) => {
+                const value = normalizeMetricScore(scores[key] ?? 0);
+
                 return (
-                    <div key={key}>
-                        <div className="flex justify-between items-center text-xs mb-1">
-                            <span className={`flex items-center gap-1 font-medium ${color}`}>
-                                <Icon className="w-3 h-3" /> {label}
-                            </span>
-                            <span className="text-muted-foreground tabular-nums">{raw.toLocaleString()}</span>
+                    <div key={key} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium">{label}</p>
+                                <p className="text-xs text-muted-foreground">{description}</p>
+                            </div>
+                            <span className="text-sm font-semibold tabular-nums">{value}</span>
                         </div>
-                        <Progress value={pct} className="h-1.5" />
+                        <Progress value={value} className="h-2" />
                     </div>
                 );
             })}
