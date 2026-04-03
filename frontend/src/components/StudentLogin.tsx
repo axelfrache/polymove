@@ -14,6 +14,7 @@ export function StudentLogin() {
         e.preventDefault();
         if (studentId.trim()) {
             localStorage.setItem("studentId", studentId.trim());
+            window.dispatchEvent(new Event("polymove-student-change"));
             navigate("/dashboard");
         }
     };

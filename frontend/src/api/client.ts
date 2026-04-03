@@ -1,6 +1,25 @@
-import type { OffersResponse, RecommendedOffersResponse } from "../types";
+import type {
+    AppliedInternship,
+    Notification,
+    OffersResponse,
+    RecommendedOffersResponse,
+} from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+    const text = await res.text();
+    if (!text) {
+        return fallback;
+    }
+
+    try {
+        const json = JSON.parse(text) as { error?: string; message?: string };
+        return json.error || json.message || text;
+    } catch {
+        return text;
+    }
+}
 
 export async function fetchOffers(city?: string, domain?: string, limit: number = 10): Promise<OffersResponse> {
     const params = new URLSearchParams();
@@ -22,7 +41,11 @@ export async function fetchRecommendedOffers(studentId: string, limit: number = 
 
     const res = await fetch(`${API_BASE_URL}/students/${studentId}/recommended-offers?${params.toString()}`);
     if (!res.ok) {
-        throw new Error("Failed to fetch recommended offers");
+        if (res.status === 404) {
+            throw new Error("Student not found");
+        }
+
+        throw new Error(await readErrorMessage(res, "Failed to fetch recommended offers"));
     }
     return res.json();
 }
@@ -50,4 +73,41 @@ export async function applyInternship(studentId: string, offerId: string): Promi
     } catch {
         return { approved: true, message: text || "Applied!" };
     }
+}
+
+export async function fetchNotifications(studentId: string): Promise<Notification[]> {
+    const res = await fetch(`${API_BASE_URL}/students/${studentId}/notifications`);
+    if (!res.ok) {
+        if (res.status === 404) {
+            throw new Error("Student not found");
+        }
+
+        throw new Error(await readErrorMessage(res, "Failed to fetch notifications"));
+    }
+    return res.json();
+}
+
+export async function markNotificationAsRead(notificationId: string): Promise<Notification> {
+    const res = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+        method: "PUT",
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to update notification");
+    }
+
+    const text = await res.text();
+    return text ? JSON.parse(text) : { id: notificationId } as Notification;
+}
+
+export async function fetchAppliedInternships(studentId: string): Promise<AppliedInternship[]> {
+    const res = await fetch(`${API_BASE_URL}/students/${studentId}/internships`);
+    if (!res.ok) {
+        if (res.status === 404) {
+            throw new Error("Student not found");
+        }
+
+        throw new Error(await readErrorMessage(res, "Failed to fetch applications"));
+    }
+    return res.json();
 }

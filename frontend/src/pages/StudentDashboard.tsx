@@ -1,157 +1,234 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRecommendedOffers } from "../api/client";
+import { AppliedOffersPanel } from "../components/AppliedOffersPanel";
+import { NotificationPanel } from "../components/NotificationPanel";
 import { OfferCard } from "../components/OfferCard";
-import { Card, CardContent } from "@/components/ui/card";
+import { sortOffersForDashboard } from "@/lib/offer-metrics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { Loader2, LogOut, GraduationCap, MapPin, AlertCircle, Compass } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertCircle, Loader2, LogOut } from "lucide-react";
+
+function getApiSort(sortBy: string): string {
+    if (sortBy === "safety") {
+        return "safety";
+    }
+
+    return "none";
+}
+
+function getStrategyLabel(sortBy: string): string {
+    switch (sortBy) {
+        case "salary":
+            return "Salary-first";
+        case "safety":
+            return "Safety-first";
+        case "recent":
+            return "Recent openings";
+        case "best_match":
+        default:
+            return "Best match";
+    }
+}
 
 export function StudentDashboard() {
     const navigate = useNavigate();
     const [studentId, setStudentId] = useState<string | null>(null);
-    const [sortBy, setSortBy] = useState<string>("none");
+    const [sortBy, setSortBy] = useState("best_match");
+
+    const clearStoredStudent = () => {
+        localStorage.removeItem("studentId");
+        window.dispatchEvent(new Event("polymove-student-change"));
+        setStudentId(null);
+    };
 
     useEffect(() => {
         const id = localStorage.getItem("studentId");
         if (!id) {
             navigate("/login");
-        } else {
-            setStudentId(id);
+            return;
         }
+
+        setStudentId(id);
     }, [navigate]);
 
     const { data, isLoading, isError, error } = useQuery({
-        queryKey: ["recommended-offers", studentId, sortBy],
+        queryKey: ["recommended-offers", studentId, getApiSort(sortBy)],
         queryFn: () => {
-            if (!studentId) throw new Error("No student ID");
-            return fetchRecommendedOffers(studentId, 5, sortBy);
+            if (!studentId) {
+                throw new Error("No student ID");
+            }
+
+            return fetchRecommendedOffers(studentId, 5, getApiSort(sortBy));
         },
         enabled: !!studentId,
     });
 
+    useEffect(() => {
+        if (!(isError && error instanceof Error && error.message === "Student not found")) {
+            return;
+        }
+
+        clearStoredStudent();
+        navigate("/login", {
+            replace: true,
+            state: { reason: "student-not-found" },
+        });
+    }, [isError, error, navigate]);
+
     const handleLogout = () => {
-        localStorage.removeItem("studentId");
+        clearStoredStudent();
         navigate("/");
     };
 
-    if (!studentId) return null;
+    if (!studentId) {
+        return null;
+    }
 
-    const count = data?.offers?.length ?? 0;
+    const sortedOffers = data?.offers ? sortOffersForDashboard(data.offers, sortBy) : [];
+    const offerCount = sortedOffers.length;
+    const strategyLabel = getStrategyLabel(sortBy);
 
     return (
-        <div className="min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-muted/20 to-background">
-            <div className="container mx-auto py-10 px-4 max-w-7xl">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Student Dashboard</h1>
-                        <p className="text-muted-foreground text-sm mt-1.5">
-                            Personalized internship recommendations based on your domain.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                            <Link to="/" className="flex items-center gap-1.5">
-                                <Compass className="w-4 h-4" /> Explore All
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
-                            <LogOut className="w-4 h-4 mr-1.5" /> Logout
-                        </Button>
-                    </div>
-                </div>
-
+        <div className="min-h-[calc(100vh-3.5rem)] bg-background">
+            <div className="container mx-auto max-w-7xl px-4 py-8">
                 {data?.student && (
-                    <Card className="mb-8 border-0 shadow-md bg-card ring-1 ring-border/50">
-                        <CardContent className="flex items-center gap-5 py-5 px-6">
-                            <div className="bg-primary p-3 rounded-xl shrink-0">
-                                <GraduationCap className="w-6 h-6 text-primary-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-lg leading-tight">
+                    <Card className="mb-6 border-border/70 bg-card shadow-sm">
+                        <CardContent className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                            <div className="space-y-2">
+                                <h1 className="text-2xl font-semibold tracking-tight">
                                     {data.student.firstname} {data.student.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1 font-mono truncate">{studentId}</p>
+                                </h1>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="secondary" className="rounded-full px-2.5 py-0.5">
+                                        {data.student.domain}
+                                    </Badge>
+                                    <Badge variant="outline" className="rounded-full px-2.5 py-0.5">
+                                        {strategyLabel}
+                                    </Badge>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Domain</span>
-                                <Badge className="px-3 py-1">{data.student.domain}</Badge>
-                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleLogout}
+                                className="self-start text-muted-foreground hover:text-foreground md:self-center"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Logout
+                            </Button>
                         </CardContent>
                     </Card>
                 )}
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-                    <div className="flex items-baseline gap-3">
-                        <h2 className="text-xl font-semibold">Recommended Offers</h2>
-                        {!isLoading && !isError && data && (
-                            <Badge variant="secondary" className="px-2.5 py-0.5">{count} offer{count !== 1 ? "s" : ""}</Badge>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">Sort by:</span>
-                        <Select value={sortBy} onValueChange={setSortBy}>
-                            <SelectTrigger className="w-48 h-9 text-sm">
-                                <SelectValue placeholder="Sort…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">None (Default)</SelectItem>
-                                <SelectItem value="safety">Safety</SelectItem>
-                                <SelectItem value="economy">Economy</SelectItem>
-                                <SelectItem value="quality_of_life">Quality of Life</SelectItem>
-                                <SelectItem value="culture">Culture</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
+                <Tabs defaultValue="recommendations" className="gap-5">
+                    <TabsList
+                        variant="line"
+                        className="w-full justify-start rounded-none border-b bg-transparent p-0"
+                    >
+                        <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+                        <TabsTrigger value="applications">Applications</TabsTrigger>
+                        <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                    </TabsList>
 
-                <Separator className="mb-8" />
+                    <TabsContent value="recommendations" className="space-y-5">
+                        <Card className="border-border/70 shadow-sm">
+                            <CardContent className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h2 className="text-lg font-semibold tracking-tight">
+                                            Recommended offers
+                                        </h2>
+                                        <Badge variant="secondary" className="rounded-full px-2.5 py-0.5">
+                                            {offerCount}
+                                        </Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        Ranked for fast comparison and decision-making.
+                                    </p>
+                                </div>
 
-                {isLoading && (
-                    <div className="flex flex-col justify-center items-center py-32 gap-3">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Loading recommendations…</p>
-                    </div>
-                )}
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-muted-foreground">Sort by</span>
+                                    <Select value={sortBy} onValueChange={setSortBy}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Select a sort" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="best_match">Best match</SelectItem>
+                                            <SelectItem value="salary">Salary</SelectItem>
+                                            <SelectItem value="safety">Safety</SelectItem>
+                                            <SelectItem value="recent">Recent</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                {isError && (
-                    <div className="flex items-start gap-3 bg-destructive/10 text-destructive border border-destructive/20 p-5 rounded-xl">
-                        <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                        <div>
-                            <p className="font-semibold text-sm">Failed to load recommendations</p>
-                            <p className="text-sm opacity-80 mt-0.5">{error.message}</p>
-                        </div>
-                    </div>
-                )}
-
-                {!isLoading && !isError && data?.offers && (
-                    <>
-                        {data.offers.length === 0 ? (
-                            <div className="text-center py-32 bg-muted/30 rounded-2xl border border-dashed">
-                                <MapPin className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
-                                <h3 className="text-base font-medium text-muted-foreground">No recommendations available</h3>
-                                <p className="text-sm text-muted-foreground mt-1.5 opacity-70">
-                                    No offers match your domain yet.
+                        {isLoading && (
+                            <div className="flex flex-col items-center justify-center gap-3 py-24">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                <p className="text-sm text-muted-foreground">
+                                    Loading recommendations...
                                 </p>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {data.offers.map((offer) => (
-                                    <OfferCard key={offer.id} offer={offer} studentId={studentId} />
-                                ))}
-                            </div>
                         )}
-                    </>
-                )}
+
+                        {isError && (
+                            <Card className="border-destructive/20 bg-destructive/5 shadow-none">
+                                <CardContent className="flex items-start gap-3 px-5 py-5 text-destructive">
+                                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-semibold">
+                                            Failed to load recommendations
+                                        </p>
+                                        <p className="text-sm opacity-80">{error.message}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {!isLoading && !isError && (
+                            <>
+                                {sortedOffers.length === 0 ? (
+                                    <Card className="border-dashed shadow-none">
+                                        <CardContent className="px-6 py-20 text-center">
+                                            <p className="text-base font-medium">
+                                                No recommendations available
+                                            </p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                Matching offers will appear here once they are available.
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                                        {sortedOffers.map((offer) => (
+                                            <OfferCard
+                                                key={offer.id}
+                                                offer={offer}
+                                                studentId={studentId}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="applications" className="space-y-5">
+                        <AppliedOffersPanel studentId={studentId} />
+                    </TabsContent>
+
+                    <TabsContent value="notifications" className="space-y-5">
+                        <NotificationPanel studentId={studentId} />
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );

@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { OffersExplorer } from "./pages/OffersExplorer";
 import { StudentDashboard } from "./pages/StudentDashboard";
 import { StudentLogin } from "./components/StudentLogin";
@@ -27,6 +28,22 @@ function ThemeToggle() {
 function Navbar() {
     const location = useLocation();
     const isDashboard = location.pathname.includes("/dashboard") || location.pathname.includes("/login");
+    const [studentId, setStudentId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const syncStudent = () => setStudentId(localStorage.getItem("studentId"));
+
+        syncStudent();
+        window.addEventListener("storage", syncStudent);
+        window.addEventListener("focus", syncStudent);
+        window.addEventListener("polymove-student-change", syncStudent);
+
+        return () => {
+            window.removeEventListener("storage", syncStudent);
+            window.removeEventListener("focus", syncStudent);
+            window.removeEventListener("polymove-student-change", syncStudent);
+        };
+    }, []);
 
     return (
         <header className="bg-background sticky top-0 z-50">
@@ -34,7 +51,14 @@ function Navbar() {
                 <Link to="/" className="flex items-center gap-2 text-lg font-bold text-primary">
                     <MapPin className="w-5 h-5" /> Polymove
                 </Link>
-                <nav className="flex items-center gap-1">
+                <div className="flex items-center gap-3">
+                    {studentId && (
+                        <div className="hidden items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground md:flex">
+                            <span className="font-medium text-foreground">Active student</span>
+                            <span className="font-mono">{studentId.slice(0, 8)}...</span>
+                        </div>
+                    )}
+                    <nav className="flex items-center gap-1">
                     <Button variant={!isDashboard ? "secondary" : "ghost"} size="sm" asChild>
                         <Link to="/">Explorer</Link>
                     </Button>
@@ -44,7 +68,8 @@ function Navbar() {
                         </Link>
                     </Button>
                     <ThemeToggle />
-                </nav>
+                    </nav>
+                </div>
             </div>
             <Separator />
         </header>

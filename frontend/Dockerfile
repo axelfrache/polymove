@@ -2,6 +2,11 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+ARG VITE_API_BASE_URL=http://localhost:3000
+ARG VITE_LAPOSTE_BASE_URL=http://localhost:3002
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_LAPOSTE_BASE_URL=${VITE_LAPOSTE_BASE_URL}
+
 # Install dependencies first for caching layer
 COPY package*.json ./
 RUN npm ci && chmod -R +x node_modules/.bin

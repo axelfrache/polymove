@@ -32,6 +32,34 @@ export interface Student {
     domain: string;
 }
 
+export interface Notification {
+    id: string;
+    student_id: string;
+    notification_type: string;
+    offer_id: string;
+    message: string;
+    read: boolean;
+}
+
+export interface AppliedOffer {
+    id: string;
+    title: string;
+    link: string;
+    city: string;
+    domain: string;
+    salary: number;
+    start_date: string;
+    end_date: string;
+}
+
+export interface AppliedInternship {
+    id: string;
+    offer_id: string;
+    approved: boolean;
+    message: string;
+    offer: AppliedOffer | null;
+}
+
 export interface OffersResponse {
     offers: EnrichedOffer[];
 }
